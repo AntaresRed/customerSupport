@@ -181,6 +181,87 @@ async function createSampleKnowledge() {
           keywords: ['privacy', 'data', 'protection', 'security', 'personal'],
           author: adminUser._id,
           viewCount: 0
+        },
+        {
+          title: 'How to update your profile information',
+          content: 'You can update your profile information by logging into your account and clicking on "Account Settings" or "Profile". From there, you can change your name, email, phone number, and address. Changes are saved automatically and take effect immediately.',
+          category: 'account',
+          tags: ['profile', 'account', 'settings'],
+          keywords: ['profile', 'account', 'settings', 'update', 'change', 'information'],
+          author: adminUser._id,
+          viewCount: 0
+        },
+        {
+          title: 'Understanding your order status',
+          content: 'Order statuses include: Pending (payment processing), Confirmed (payment received), Processing (being prepared), Shipped (on the way), Delivered (arrived), and Cancelled. You can track your order status in real-time through your account dashboard.',
+          category: 'orders',
+          tags: ['order', 'status', 'tracking'],
+          keywords: ['order', 'status', 'tracking', 'pending', 'confirmed', 'shipped', 'delivered'],
+          author: adminUser._id,
+          viewCount: 0
+        },
+        {
+          title: 'How to contact customer support',
+          content: 'You can contact our customer support team through multiple channels: Live chat (available 24/7), Email support (response within 2 hours), Phone support (business hours), and our help center with comprehensive guides. We also offer priority support for premium customers.',
+          category: 'support',
+          tags: ['support', 'contact', 'help'],
+          keywords: ['support', 'contact', 'help', 'chat', 'email', 'phone', 'assistance'],
+          author: adminUser._id,
+          viewCount: 0
+        },
+        {
+          title: 'Product reviews and ratings guide',
+          content: 'You can leave product reviews and ratings after receiving your order. Reviews help other customers make informed decisions. Ratings are on a 1-5 star scale. You can edit your review within 30 days of posting. Inappropriate reviews may be moderated.',
+          category: 'reviews',
+          tags: ['reviews', 'ratings', 'feedback'],
+          keywords: ['reviews', 'ratings', 'feedback', 'stars', 'rating', 'opinion'],
+          author: adminUser._id,
+          viewCount: 0
+        },
+        {
+          title: 'How to use discount codes and coupons',
+          content: 'To use discount codes, enter the code at checkout in the "Promo Code" field. Codes can be applied to eligible items and will show the discount amount. Some codes have minimum purchase requirements or expiration dates. Only one code can be used per order.',
+          category: 'billing',
+          tags: ['discount', 'coupon', 'promo'],
+          keywords: ['discount', 'coupon', 'promo', 'code', 'savings', 'offer'],
+          author: adminUser._id,
+          viewCount: 0
+        },
+        {
+          title: 'Mobile app features and benefits',
+          content: 'Our mobile app offers exclusive features: Push notifications for order updates, Quick reorder functionality, Mobile-exclusive deals, Barcode scanning for product information, and Offline access to order history. Download from App Store or Google Play.',
+          category: 'mobile',
+          tags: ['mobile', 'app', 'features'],
+          keywords: ['mobile', 'app', 'features', 'notifications', 'scan', 'offline'],
+          author: adminUser._id,
+          viewCount: 0
+        },
+        {
+          title: 'How to manage your subscriptions',
+          content: 'You can manage your subscriptions in your account under "Subscriptions". From there, you can pause, cancel, or modify subscription frequency. Changes take effect at the next billing cycle. You can also skip deliveries or change delivery addresses.',
+          category: 'subscriptions',
+          tags: ['subscription', 'manage', 'billing'],
+          keywords: ['subscription', 'manage', 'cancel', 'pause', 'modify', 'billing'],
+          author: adminUser._id,
+          viewCount: 0
+        },
+        {
+          title: 'International shipping information',
+          content: 'We ship to over 50 countries worldwide. International shipping takes 7-21 business days depending on destination. Customs fees may apply and are the customer\'s responsibility. Some items may have shipping restrictions based on destination country laws.',
+          category: 'shipping',
+          tags: ['international', 'shipping', 'customs'],
+          keywords: ['international', 'shipping', 'customs', 'global', 'worldwide', 'countries'],
+          author: adminUser._id,
+          viewCount: 0
+        },
+        {
+          title: 'How to report a problem or bug',
+          content: 'To report technical issues or bugs, please contact our technical support team with detailed information: What you were trying to do, What happened instead, Screenshots if applicable, Browser/device information, and Error messages. We appreciate your feedback!',
+          category: 'technical',
+          tags: ['bug', 'report', 'technical'],
+          keywords: ['bug', 'report', 'technical', 'issue', 'problem', 'error'],
+          author: adminUser._id,
+          viewCount: 0
         }
       ];
 
@@ -432,6 +513,294 @@ async function createSampleAutomationRules() {
               type: 'create_maintenance_ticket',
               params: {
                 category: 'maintenance'
+              }
+            }
+          ],
+          isActive: true,
+          createdBy: adminUser._id,
+          executionCount: 0
+        },
+        {
+          name: 'Auto-respond to Low Priority Tickets',
+          description: 'Automatically sends acknowledgment for low priority tickets during off-hours',
+          trigger: 'ticket_created',
+          conditions: {
+            priority: 'low',
+            createdTime: { $gte: '18:00', $lte: '08:00' }
+          },
+          actions: [
+            {
+              type: 'send_auto_response',
+              params: {
+                template: 'after_hours_acknowledgment'
+              }
+            },
+            {
+              type: 'set_expected_response_time',
+              params: {
+                hours: 24
+              }
+            }
+          ],
+          isActive: true,
+          createdBy: adminUser._id,
+          executionCount: 0
+        },
+        {
+          name: 'Escalate Unresolved Tickets After 72 Hours',
+          description: 'Automatically escalates tickets that remain unresolved for more than 72 hours',
+          trigger: 'ticket_overdue',
+          conditions: {
+            status: 'open',
+            hoursOpen: { $gt: 72 },
+            priority: { $in: ['medium', 'high'] }
+          },
+          actions: [
+            {
+              type: 'escalate_to_manager',
+              params: {
+                escalationLevel: 'senior_manager'
+              }
+            },
+            {
+              type: 'update_priority',
+              params: {
+                newPriority: 'high'
+              }
+            },
+            {
+              type: 'send_escalation_notification',
+              params: {
+                template: 'urgent_escalation'
+              }
+            }
+          ],
+          isActive: true,
+          createdBy: adminUser._id,
+          executionCount: 0
+        },
+        {
+          name: 'Auto-assign Technical Issues to IT Team',
+          description: 'Automatically assigns technical issues to the IT support team',
+          trigger: 'ticket_created',
+          conditions: {
+            category: 'technical',
+            keywords: ['bug', 'error', 'system', 'login', 'password', 'access']
+          },
+          actions: [
+            {
+              type: 'assign_to_team',
+              params: {
+                team: 'it_support'
+              }
+            },
+            {
+              type: 'add_tags',
+              params: {
+                tags: ['technical', 'it', 'automated']
+              }
+            },
+            {
+              type: 'send_notification',
+              params: {
+                message: 'Technical issue automatically assigned to IT team'
+              }
+            }
+          ],
+          isActive: true,
+          createdBy: adminUser._id,
+          executionCount: 0
+        },
+        {
+          name: 'Send Customer Satisfaction Survey',
+          description: 'Sends satisfaction survey to customers after ticket resolution',
+          trigger: 'ticket_resolved',
+          conditions: {
+            status: 'resolved',
+            resolutionTime: { $lt: 48 }
+          },
+          actions: [
+            {
+              type: 'send_satisfaction_survey',
+              params: {
+                delay: '24h',
+                template: 'satisfaction_survey'
+              }
+            },
+            {
+              type: 'track_customer_satisfaction',
+              params: {
+                metric: 'resolution_satisfaction'
+              }
+            }
+          ],
+          isActive: true,
+          createdBy: adminUser._id,
+          executionCount: 0
+        },
+        {
+          name: 'Auto-categorize Billing Issues',
+          description: 'Automatically categorizes and routes billing-related tickets',
+          trigger: 'ticket_created',
+          conditions: {
+            keywords: ['billing', 'payment', 'charge', 'refund', 'invoice', 'credit']
+          },
+          actions: [
+            {
+              type: 'update_category',
+              params: {
+                newCategory: 'billing'
+              }
+            },
+            {
+              type: 'assign_to_team',
+              params: {
+                team: 'billing_support'
+              }
+            },
+            {
+              type: 'set_priority',
+              params: {
+                priority: 'medium'
+              }
+            },
+            {
+              type: 'add_tags',
+              params: {
+                tags: ['billing', 'financial', 'automated']
+              }
+            }
+          ],
+          isActive: true,
+          createdBy: adminUser._id,
+          executionCount: 0
+        },
+        {
+          name: 'Create Follow-up Tasks for High Priority Tickets',
+          description: 'Automatically creates follow-up tasks for high priority tickets',
+          trigger: 'ticket_created',
+          conditions: {
+            priority: 'high'
+          },
+          actions: [
+            {
+              type: 'create_followup_task',
+              params: {
+                taskType: 'priority_followup',
+                dueTime: '24h'
+              }
+            },
+            {
+              type: 'set_reminder',
+              params: {
+                reminderTime: '12h',
+                message: 'High priority ticket follow-up required'
+              }
+            }
+          ],
+          isActive: true,
+          createdBy: adminUser._id,
+          executionCount: 0
+        },
+        {
+          name: 'Auto-close Inactive Tickets',
+          description: 'Automatically closes tickets that have been inactive for 30 days',
+          trigger: 'ticket_inactive',
+          conditions: {
+            status: 'open',
+            lastActivity: { $lt: '30d' },
+            priority: 'low'
+          },
+          actions: [
+            {
+              type: 'send_inactivity_notice',
+              params: {
+                template: 'inactivity_warning',
+                noticePeriod: '7d'
+              }
+            },
+            {
+              type: 'auto_close_ticket',
+              params: {
+                status: 'closed',
+                resolution: 'inactive_timeout'
+              }
+            },
+            {
+              type: 'log_closure_reason',
+              params: {
+                reason: '30_day_inactivity'
+              }
+            }
+          ],
+          isActive: true,
+          createdBy: adminUser._id,
+          executionCount: 0
+        },
+        {
+          name: 'Notify Managers of System Outages',
+          description: 'Immediately notifies managers when system outage tickets are created',
+          trigger: 'ticket_created',
+          conditions: {
+            keywords: ['outage', 'down', 'unavailable', 'system', 'service'],
+            priority: { $in: ['high', 'urgent'] }
+          },
+          actions: [
+            {
+              type: 'notify_management',
+              params: {
+                urgency: 'immediate',
+                recipients: ['cto', 'engineering_manager', 'operations_manager']
+              }
+            },
+            {
+              type: 'create_incident_report',
+              params: {
+                severity: 'high'
+              }
+            },
+            {
+              type: 'update_status_page',
+              params: {
+                status: 'investigating'
+              }
+            }
+          ],
+          isActive: true,
+          createdBy: adminUser._id,
+          executionCount: 0
+        },
+        {
+          name: 'Auto-escalate Complaints to Customer Success',
+          description: 'Automatically escalates customer complaints to the customer success team',
+          trigger: 'ticket_created',
+          conditions: {
+            keywords: ['complaint', 'dissatisfied', 'unhappy', 'poor service', 'terrible'],
+            sentiment: 'negative'
+          },
+          actions: [
+            {
+              type: 'escalate_to_team',
+              params: {
+                team: 'customer_success'
+              }
+            },
+            {
+              type: 'set_priority',
+              params: {
+                priority: 'high'
+              }
+            },
+            {
+              type: 'add_tags',
+              params: {
+                tags: ['complaint', 'escalation', 'customer_success']
+              }
+            },
+            {
+              type: 'send_escalation_alert',
+              params: {
+                template: 'complaint_escalation'
               }
             }
           ],
