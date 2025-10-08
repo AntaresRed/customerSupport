@@ -54,6 +54,53 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+// Data verification endpoint
+app.get('/api/verify-data', async (req, res) => {
+  try {
+    const Customer = require('./models/Customer');
+    const Ticket = require('./models/Ticket');
+    const User = require('./models/User');
+    
+    const customers = await Customer.find({}).limit(5);
+    const tickets = await Ticket.find({}).limit(5);
+    const users = await User.find({}).limit(5);
+    
+    res.json({
+      success: true,
+      counts: {
+        customers: await Customer.countDocuments(),
+        tickets: await Ticket.countDocuments(),
+        users: await User.countDocuments()
+      },
+      sampleData: {
+        customers: customers.map(c => ({
+          id: c._id,
+          name: c.name,
+          email: c.email,
+          customerId: c.customerId
+        })),
+        tickets: tickets.map(t => ({
+          id: t._id,
+          subject: t.subject,
+          status: t.status,
+          customerId: t.customerId
+        })),
+        users: users.map(u => ({
+          id: u._id,
+          name: u.name,
+          email: u.email,
+          role: u.role
+        }))
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Setup endpoint for database initialization
 app.get('/api/setup', async (req, res) => {
   try {
@@ -77,89 +124,215 @@ app.get('/api/setup', async (req, res) => {
   }
 });
 
-// Seed issues endpoint
-app.get('/api/seed-issues', async (req, res) => {
+// Comprehensive setup endpoint - does everything
+app.get('/api/init-all', async (req, res) => {
   try {
-    // Try to import and use the script function first
+    console.log('🚀 Starting complete initialization...');
+    
+    // Step 1: Setup database (admin user, basic structure)
     try {
-      const { generateTestData } = require('./scripts/generateIssueTestData');
-      await generateTestData();
-      res.json({ 
-        success: true, 
-        message: 'Issue test data seeded successfully using script!'
-      });
-    } catch (importError) {
-      console.log('Script import failed, using fallback method:', importError.message);
+      const { setupProduction } = require('./scripts/setupProduction');
+      await setupProduction();
+      console.log('✅ Database setup completed');
+    } catch (setupError) {
+      console.log('⚠️ Setup script failed, creating basic admin user...');
       
-      // Fallback: Create some basic test data directly
-      const Ticket = require('./models/Ticket');
-      const Customer = require('./models/Customer');
-      
-      // Create a few sample customers if they don't exist
-      const existingCustomers = await Customer.countDocuments();
-      if (existingCustomers < 3) {
-        const sampleCustomers = [
-          {
-            customerId: 'CUST-TEST-001',
-            name: 'Test Customer 1',
-            email: 'test1@example.com',
-            phone: '+1-555-0001',
-            customerTier: 'gold',
-            loyaltyPoints: 1000
-          },
-          {
-            customerId: 'CUST-TEST-002', 
-            name: 'Test Customer 2',
-            email: 'test2@example.com',
-            phone: '+1-555-0002',
-            customerTier: 'silver',
-            loyaltyPoints: 500
-          }
-        ];
-        await Customer.insertMany(sampleCustomers);
+      // Create basic admin user manually
+      const User = require('./models/User');
+      const existingAdmin = await User.findOne({ email: 'admin@example.com' });
+      if (!existingAdmin) {
+        const adminUser = new User({
+          name: 'Admin User',
+          email: 'admin@example.com',
+          password: 'admin123',
+          role: 'admin',
+          department: 'support'
+        });
+        await adminUser.save();
+        console.log('✅ Basic admin user created');
       }
+    }
+    
+    // Step 2: Create sample customers
+    const Customer = require('./models/Customer');
+    const existingCustomers = await Customer.countDocuments();
+    
+    if (existingCustomers < 5) {
+      const sampleCustomers = [
+        {
+          customerId: 'CUST-DEMO-001',
+          name: 'Alice Johnson',
+          email: 'alice@demo.com',
+          phone: '+1-555-0101',
+          customerTier: 'gold',
+          loyaltyPoints: 1500,
+          orderHistory: [],
+          cartItems: [],
+          lastActivity: new Date()
+        },
+        {
+          customerId: 'CUST-DEMO-002',
+          name: 'Bob Wilson',
+          email: 'bob@demo.com', 
+          phone: '+1-555-0102',
+          customerTier: 'silver',
+          loyaltyPoints: 800,
+          orderHistory: [],
+          cartItems: [],
+          lastActivity: new Date()
+        },
+        {
+          customerId: 'CUST-DEMO-003',
+          name: 'Carol Davis',
+          email: 'carol@demo.com',
+          phone: '+1-555-0103', 
+          customerTier: 'platinum',
+          loyaltyPoints: 3000,
+          orderHistory: [],
+          cartItems: [],
+          lastActivity: new Date()
+        },
+        {
+          customerId: 'CUST-DEMO-004',
+          name: 'David Smith',
+          email: 'david@demo.com',
+          phone: '+1-555-0104',
+          customerTier: 'bronze',
+          loyaltyPoints: 200,
+          orderHistory: [],
+          cartItems: [],
+          lastActivity: new Date()
+        },
+        {
+          customerId: 'CUST-DEMO-005',
+          name: 'Emma Brown',
+          email: 'emma@demo.com',
+          phone: '+1-555-0105',
+          customerTier: 'gold',
+          loyaltyPoints: 1200,
+          orderHistory: [],
+          cartItems: [],
+          lastActivity: new Date()
+        }
+      ];
       
-      // Create some sample tickets for issue detection
-      const existingTickets = await Ticket.countDocuments();
-      if (existingTickets < 5) {
-        const customers = await Customer.find().limit(2);
-        if (customers.length > 0) {
-          const sampleTickets = [
-            {
-              customerId: customers[0]._id,
-              subject: 'Order delivery delayed',
-              description: 'My order was supposed to arrive yesterday but it\'s still not here. This is the third time this month.',
-              category: 'shipping',
-              priority: 'high',
-              status: 'open',
-              tags: ['delivery', 'delay']
-            },
-            {
-              customerId: customers[1]?._id || customers[0]._id,
-              subject: 'Wrong item received',
-              description: 'I ordered a blue shirt but received a red one. Need to return this immediately.',
-              category: 'order',
-              priority: 'medium',
-              status: 'open',
-              tags: ['wrong-item', 'return']
-            }
-          ];
-          await Ticket.insertMany(sampleTickets);
+      for (const customerData of sampleCustomers) {
+        const existing = await Customer.findOne({ email: customerData.email });
+        if (!existing) {
+          await Customer.create(customerData);
+          console.log(`✅ Created customer: ${customerData.name}`);
         }
       }
-      
-      res.json({ 
-        success: true, 
-        message: 'Basic test data seeded successfully using fallback method!'
-      });
     }
+    
+    // Step 3: Create sample tickets
+    const Ticket = require('./models/Ticket');
+    const existingTickets = await Ticket.countDocuments();
+    
+    if (existingTickets < 10) {
+      const customers = await Customer.find().limit(5);
+      if (customers.length > 0) {
+        const sampleTickets = [
+          {
+            customerId: customers[0]._id,
+            subject: 'Order not delivered on time',
+            description: 'My order was supposed to arrive yesterday but it\'s still not here. This is very frustrating as I needed it for an important event.',
+            category: 'shipping',
+            priority: 'high',
+            status: 'open',
+            tags: ['delivery', 'delay', 'urgent'],
+            createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) // 2 days ago
+          },
+          {
+            customerId: customers[1]?._id || customers[0]._id,
+            subject: 'Wrong item received',
+            description: 'I ordered a blue shirt size M but received a red shirt size L. I need to return this and get the correct item.',
+            category: 'order',
+            priority: 'medium',
+            status: 'open',
+            tags: ['wrong-item', 'return', 'exchange'],
+            createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) // 1 day ago
+          },
+          {
+            customerId: customers[2]?._id || customers[0]._id,
+            subject: 'Product quality issue',
+            description: 'The product I received has a defect. The zipper is broken and the material feels cheap. I want a refund.',
+            category: 'quality',
+            priority: 'high',
+            status: 'in_progress',
+            tags: ['defect', 'quality', 'refund'],
+            createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) // 3 days ago
+          },
+          {
+            customerId: customers[0]._id,
+            subject: 'Billing question',
+            description: 'I was charged twice for the same order. Can you please check and refund the duplicate charge?',
+            category: 'billing',
+            priority: 'medium',
+            status: 'resolved',
+            tags: ['billing', 'duplicate', 'refund'],
+            createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000) // 5 days ago
+          },
+          {
+            customerId: customers[3]?._id || customers[0]._id,
+            subject: 'Technical support needed',
+            description: 'I\'m having trouble setting up the product. The instructions are unclear and I need help.',
+            category: 'technical',
+            priority: 'low',
+            status: 'open',
+            tags: ['setup', 'instructions', 'help'],
+            createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) // 1 day ago
+          }
+        ];
+        
+        for (const ticketData of sampleTickets) {
+          const existing = await Ticket.findOne({ 
+            customerId: ticketData.customerId,
+            subject: ticketData.subject 
+          });
+          if (!existing) {
+            await Ticket.create(ticketData);
+            console.log(`✅ Created ticket: ${ticketData.subject}`);
+          }
+        }
+      }
+    }
+    
+    // Step 4: Return final status
+    const finalCounts = {
+      customers: await Customer.countDocuments(),
+      tickets: await Ticket.countDocuments(),
+      users: await User.countDocuments()
+    };
+    
+    res.json({
+      success: true,
+      message: 'Complete initialization successful!',
+      data: finalCounts,
+      credentials: {
+        email: 'admin@example.com',
+        password: 'admin123'
+      },
+      note: 'Your application is now ready to use!'
+    });
+    
   } catch (error) {
-    console.error('Seed error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    console.error('❌ Initialization error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'Initialization failed. Please check the logs.'
     });
   }
+});
+
+// Seed issues endpoint (legacy)
+app.get('/api/seed-issues', async (req, res) => {
+  res.json({
+    success: false,
+    message: 'This endpoint is deprecated. Please use /api/init-all instead.',
+    redirect: '/api/init-all'
+  });
 });
 
 // Socket.io for real-time updates
