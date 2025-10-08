@@ -2175,10 +2175,10 @@ function addMessageToChat(role, content, metadata = {}) {
       } else if (metadata.isFallback) {
         aiIndicator.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fallback Response';
         aiIndicator.style.cssText = 'font-size: 0.75rem; color: #ffc107; margin-bottom: 0.25rem; font-style: italic;';
-      } else {
-        aiIndicator.innerHTML = '<i class="fas fa-brain me-1"></i>Local Intelligence';
-        aiIndicator.style.cssText = 'font-size: 0.75rem; color: #17a2b8; margin-bottom: 0.25rem; font-style: italic;';
-      }
+               } else {
+                 aiIndicator.innerHTML = '<i class="fas fa-brain me-1"></i>AI Response';
+                 aiIndicator.style.cssText = 'font-size: 0.75rem; color: #17a2b8; margin-bottom: 0.25rem; font-style: italic;';
+               }
       
       bubble.appendChild(aiIndicator);
     }
