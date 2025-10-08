@@ -38,9 +38,19 @@ app.use('/api/issue-detection', require('./routes/issueDetection'));
 app.get('/api/health', (req, res) => {
   res.json({ 
     success: true, 
-    message: 'Server is running!',
+    message: 'Server is running! (Updated)',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    version: '2.0'
+  });
+});
+
+// Simple test endpoint
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'API is working!',
+    time: new Date().toISOString()
   });
 });
 
