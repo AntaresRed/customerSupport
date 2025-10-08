@@ -12,7 +12,7 @@
     "setup": "node scripts/setupProduction.js",
     "deploy": "vercel --prod",
     "deploy:setup": "npm run setup",
-    "vercel-build": "npm run setup"
+    "vercel-build": "echo 'Vercel build completed - setup will be done via /api/setup endpoint'"
   },
   "dependencies": {
     "axios": "^1.5.0",

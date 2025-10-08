@@ -34,6 +34,16 @@ app.use('/api/automation', require('./routes/automation'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/issue-detection', require('./routes/issueDetection'));
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Server is running!',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // Setup endpoint for database initialization
 app.get('/api/setup', async (req, res) => {
   try {
