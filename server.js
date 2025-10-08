@@ -119,10 +119,13 @@ app.use('/api/issue-detection', require('./routes/issueDetection'));
 app.get('/api/health', (req, res) => {
   res.json({ 
     success: true, 
-    message: 'Server is running! (Updated)',
+    message: 'Server is running! (Force Deploy v3.0)',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
-    version: '2.0'
+    version: '3.0',
+    deployment: 'latest',
+    connectionState: mongoose.connection.readyState,
+    forceRedeploy: true
   });
 });
 
@@ -131,7 +134,27 @@ app.get('/api/test', (req, res) => {
   res.json({ 
     status: 'OK', 
     message: 'API is working!',
-    time: new Date().toISOString()
+    time: new Date().toISOString(),
+    deployment: 'latest-v3.0'
+  });
+});
+
+// Debug endpoint to check deployment status
+app.get('/api/debug', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Debug endpoint - Force Deploy v3.0',
+    timestamp: new Date().toISOString(),
+    mongooseState: mongoose.connection.readyState,
+    mongooseStates: {
+      0: 'disconnected',
+      1: 'connected',
+      2: 'connecting',
+      3: 'disconnecting'
+    },
+    currentState: ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState] || 'unknown',
+    version: '3.0',
+    forceRedeploy: true
   });
 });
 
