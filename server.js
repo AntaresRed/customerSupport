@@ -60,38 +60,64 @@ async function ensureDBConnection() {
   
   if (currentState === 2) {
     console.log('⏳ Database is connecting, waiting for completion...');
-    // Wait for connection to complete (max 10 seconds)
+    // Wait for connection to complete (max 15 seconds)
     let attempts = 0;
-    while (mongoose.connection.readyState === 2 && attempts < 10) {
+    while (mongoose.connection.readyState === 2 && attempts < 15) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       attempts++;
-      console.log(`⏳ Still connecting... attempt ${attempts}/10`);
+      console.log(`⏳ Still connecting... attempt ${attempts}/15`);
     }
     
     if (mongoose.connection.readyState === 1) {
       console.log('✅ Database connection completed');
       return true;
     } else {
-      console.log('❌ Database connection timed out');
-      return false;
+      console.log('❌ Database connection timed out, forcing reconnection...');
+      // Force close and reconnect
+      try {
+        await mongoose.connection.close();
+        console.log('🔒 Forced connection close');
+      } catch (closeError) {
+        console.log('⚠️ Error during forced close:', closeError.message);
+      }
     }
   }
   
-  // If disconnected, try to reconnect
-  console.log('⚠️ Database disconnected, attempting to reconnect...');
+  // If disconnected or connection failed, try to reconnect
+  console.log('⚠️ Database disconnected, attempting fresh connection...');
   try {
-    await connectDB();
+    // Force a fresh connection
+    await mongoose.connection.close();
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+    
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ecommerce_support', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 15000, // 15 seconds timeout
+      socketTimeoutMS: 45000, // 45 seconds timeout
+      connectTimeoutMS: 15000, // 15 seconds timeout
+      maxPoolSize: 10,
+      retryWrites: true
+    });
+    
     // Wait for connection to establish
     let attempts = 0;
-    while (mongoose.connection.readyState !== 1 && attempts < 10) {
+    while (mongoose.connection.readyState !== 1 && attempts < 15) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       attempts++;
-      console.log(`⏳ Reconnecting... attempt ${attempts}/10`);
+      console.log(`⏳ Fresh connection attempt ${attempts}/15`);
     }
     
     const finalState = mongoose.connection.readyState;
     console.log(`✅ Final connection state: ${finalState} (${getConnectionStateName(finalState)})`);
-    return finalState === 1;
+    
+    if (finalState === 1) {
+      console.log('🎉 Database connection established successfully');
+      return true;
+    } else {
+      console.log('❌ Failed to establish database connection');
+      return false;
+    }
   } catch (error) {
     console.error('❌ Failed to reconnect to database:', error.message);
     return false;
