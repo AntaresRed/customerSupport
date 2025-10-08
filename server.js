@@ -287,52 +287,138 @@ app.get('/api/setup', async (req, res) => {
   }
 });
 
-// Comprehensive setup endpoint - does everything
+// Simplified setup endpoint - step by step approach
 app.get('/api/init-all', async (req, res) => {
+  console.log('🚀 Starting simplified initialization...');
+  
   try {
-    console.log('🚀 Starting complete initialization...');
-    
-    // Step 0: Force database connection for serverless
-    console.log('🔄 Forcing fresh database connection...');
+    // Step 1: Test database connection
+    console.log('🔄 Testing database connection...');
     const connectionSuccess = await forceDBConnection();
     
     if (!connectionSuccess) {
       return res.status(500).json({
         success: false,
         error: 'Database connection failed',
-        message: 'Cannot establish database connection. Please check MongoDB URI and network access.',
+        message: 'Cannot establish database connection',
         connectionState: mongoose.connection.readyState
       });
     }
     
-    console.log('✅ Database connection established');
+    console.log('✅ Database connection successful');
     
-    // Step 1: Create data directly (bypass setupProduction script)
-    console.log('📋 Creating data directly to avoid connection conflicts...');
+    // Step 2: Create admin user
+    console.log('👤 Creating admin user...');
+    const User = require('./models/User');
     
-    try {
-      // Create admin user
-      const User = require('./models/User');
-      let adminUser = await User.findOne({ email: 'admin@example.com' });
-      if (!adminUser) {
-        adminUser = new User({
-          name: 'Admin User',
-          email: 'admin@example.com',
-          password: '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password: admin123
-          role: 'admin',
-          department: 'support'
-        });
-        await adminUser.save();
-        console.log('✅ Admin user created');
-      } else {
-        console.log('ℹ️ Admin user already exists');
-      }
+    let adminUser = await User.findOne({ email: 'admin@example.com' });
+    if (!adminUser) {
+      adminUser = new User({
+        name: 'Admin User',
+        email: 'admin@example.com',
+        password: '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password: admin123
+        role: 'admin'
+      });
+      await adminUser.save();
+      console.log('✅ Admin user created');
+    } else {
+      console.log('ℹ️ Admin user already exists');
     }
     
-    // Step 2: Create sample customers
+    // Step 3: Create sample customers
+    console.log('👥 Creating sample customers...');
     const Customer = require('./models/Customer');
-    const existingCustomers = await Customer.countDocuments();
     
+    const existingCustomers = await Customer.countDocuments();
+    if (existingCustomers === 0) {
+      const customers = [
+        {
+          name: 'John Doe',
+          email: 'john@example.com',
+          customerId: 'CUST001',
+          customerTier: 'gold'
+        },
+        {
+          name: 'Jane Smith',
+          email: 'jane@example.com',
+          customerId: 'CUST002',
+          customerTier: 'platinum'
+        }
+      ];
+      
+      await Customer.insertMany(customers);
+      console.log('✅ Sample customers created');
+    } else {
+      console.log('ℹ️ Customers already exist');
+    }
+    
+    // Step 4: Create sample tickets
+    console.log('🎫 Creating sample tickets...');
+    const Ticket = require('./models/Ticket');
+    
+    const existingTickets = await Ticket.countDocuments();
+    if (existingTickets === 0) {
+      const customers = await Customer.find().limit(2);
+      if (customers.length > 0) {
+        const tickets = [
+          {
+            title: 'Order issue',
+            description: 'My order has not arrived yet',
+            priority: 'high',
+            status: 'open',
+            category: 'shipping',
+            customer: customers[0]._id
+          },
+          {
+            title: 'Product question',
+            description: 'How do I use this product?',
+            priority: 'low',
+            status: 'open',
+            category: 'product',
+            customer: customers[1] ? customers[1]._id : customers[0]._id
+          }
+        ];
+        
+        await Ticket.insertMany(tickets);
+        console.log('✅ Sample tickets created');
+      }
+    } else {
+      console.log('ℹ️ Tickets already exist');
+    }
+    
+    // Step 5: Return success
+    const finalCounts = {
+      customers: await Customer.countDocuments(),
+      tickets: await Ticket.countDocuments(),
+      users: await User.countDocuments()
+    };
+    
+    console.log('🎉 Initialization completed successfully!');
+    
+    res.json({
+      success: true,
+      message: 'Database initialized successfully!',
+      data: finalCounts,
+      credentials: {
+        email: 'admin@example.com',
+        password: 'admin123'
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Initialization error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'Initialization failed. Please check the logs.'
+    });
+  }
+});
+
+// Keep the old complex endpoint as backup (commented out)
+/*
+app.get('/api/init-all-backup', async (req, res) => {
+  try {
     if (existingCustomers < 5) {
       const sampleCustomers = [
         {
@@ -612,6 +698,7 @@ app.get('/api/init-all', async (req, res) => {
     });
   }
 });
+*/
 
 // Seed issues endpoint (legacy)
 app.get('/api/seed-issues', async (req, res) => {
