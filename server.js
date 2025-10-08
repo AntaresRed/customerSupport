@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
+const { ensureConnection, withConnection, getConnectionStatus } = require('./utils/dbConnection');
 require('dotenv').config();
 
 const app = express();
@@ -19,10 +20,18 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Database connection
+// Database connection middleware for serverless environments
+app.use('/api', withConnection);
+
+// Database connection with persistent management
 async function connectDB() {
   try {
-    // Don't reconnect if already connected or connecting
+    // Always ensure connection in serverless environment
+    if (process.env.NODE_ENV === 'production') {
+      return await ensureConnection();
+    }
+    
+    // For local development, only connect if not already connected
     if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
       console.log('📡 Database already connected or connecting');
       return;
@@ -32,16 +41,54 @@ async function connectDB() {
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ecommerce_support', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 10000, // 10 seconds timeout
-      socketTimeoutMS: 45000, // 45 seconds timeout
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
     });
     console.log('✅ Connected to MongoDB');
   } catch (error) {
     console.error('❌ MongoDB connection error:', error);
-    // Don't exit in serverless environment
     if (process.env.NODE_ENV !== 'production') {
       process.exit(1);
     }
+  }
+}
+
+// Ensure connection for serverless environments
+async function ensureConnection() {
+  try {
+    const state = mongoose.connection.readyState;
+    console.log(`🔍 Connection state: ${state} (${getConnectionStateName(state)})`);
+    
+    if (state === 1) {
+      console.log('✅ Database already connected');
+      return true;
+    }
+    
+    // Force fresh connection for serverless
+    console.log('🔄 Establishing fresh connection for serverless...');
+    
+    // Close any existing connection
+    if (state !== 0) {
+      await mongoose.connection.close();
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 15000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 15000,
+      maxPoolSize: 1, // Single connection for serverless
+      retryWrites: true,
+      w: 'majority'
+    });
+    
+    console.log('✅ Fresh connection established');
+    return true;
+  } catch (error) {
+    console.error('❌ Connection failed:', error.message);
+    return false;
   }
 }
 
@@ -80,19 +127,9 @@ async function forceDBConnection() {
 // Connect to database
 connectDB();
 
-// Database connection status check
+// Database connection status check - now uses the new ensureConnection
 async function ensureDBConnection() {
-  const currentState = mongoose.connection.readyState;
-  console.log(`🔍 Current connection state: ${currentState} (${getConnectionStateName(currentState)})`);
-  
-  if (currentState === 1) {
-    console.log('✅ Database already connected');
-    return true;
-  }
-  
-  // For serverless environments, always force a fresh connection
-  console.log('🔄 Serverless environment detected, forcing fresh connection...');
-  return await forceDBConnection();
+  return await ensureConnection();
 }
 
 // Helper function to get connection state name
@@ -116,17 +153,55 @@ app.use('/api/ai', require('./routes/ai'));
 app.use('/api/issue-detection', require('./routes/issueDetection'));
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    success: true, 
-    message: 'Server is running! (Force Deploy v3.0)',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    version: '3.0',
-    deployment: 'latest',
-    connectionState: mongoose.connection.readyState,
-    forceRedeploy: true
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    const status = getConnectionStatus();
+    
+    res.json({
+      success: true,
+      message: 'Server is running',
+      timestamp: new Date().toISOString(),
+      version: '4.0 - Persistent Connection Fix',
+      database: status,
+      environment: process.env.NODE_ENV || 'development'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Connection test endpoint
+app.get('/api/test-connection', async (req, res) => {
+  try {
+    console.log('🧪 Testing database connection...');
+    const connected = await ensureConnection();
+    
+    if (connected) {
+      res.json({
+        success: true,
+        message: 'Database connection successful',
+        timestamp: new Date().toISOString(),
+        state: mongoose.connection.readyState,
+        stateName: getConnectionStateName(mongoose.connection.readyState)
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Database connection failed',
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Simple test endpoint
