@@ -60,21 +60,79 @@ app.get('/api/setup', async (req, res) => {
 // Seed issues endpoint
 app.get('/api/seed-issues', async (req, res) => {
   try {
-    const { exec } = require('child_process');
-    exec('node scripts/generateIssueTestData.js', (error, stdout, stderr) => {
-      if (error) {
-        console.error('Seed error:', error);
-        return res.status(500).json({ 
-          success: false, 
-          error: error.message 
-        });
-      }
+    // Try to import and use the script function first
+    try {
+      const { generateTestData } = require('./scripts/generateIssueTestData');
+      await generateTestData();
       res.json({ 
         success: true, 
-        message: 'Issue test data seeded successfully!',
-        output: stdout
+        message: 'Issue test data seeded successfully using script!'
       });
-    });
+    } catch (importError) {
+      console.log('Script import failed, using fallback method:', importError.message);
+      
+      // Fallback: Create some basic test data directly
+      const Ticket = require('./models/Ticket');
+      const Customer = require('./models/Customer');
+      
+      // Create a few sample customers if they don't exist
+      const existingCustomers = await Customer.countDocuments();
+      if (existingCustomers < 3) {
+        const sampleCustomers = [
+          {
+            customerId: 'CUST-TEST-001',
+            name: 'Test Customer 1',
+            email: 'test1@example.com',
+            phone: '+1-555-0001',
+            customerTier: 'gold',
+            loyaltyPoints: 1000
+          },
+          {
+            customerId: 'CUST-TEST-002', 
+            name: 'Test Customer 2',
+            email: 'test2@example.com',
+            phone: '+1-555-0002',
+            customerTier: 'silver',
+            loyaltyPoints: 500
+          }
+        ];
+        await Customer.insertMany(sampleCustomers);
+      }
+      
+      // Create some sample tickets for issue detection
+      const existingTickets = await Ticket.countDocuments();
+      if (existingTickets < 5) {
+        const customers = await Customer.find().limit(2);
+        if (customers.length > 0) {
+          const sampleTickets = [
+            {
+              customerId: customers[0]._id,
+              subject: 'Order delivery delayed',
+              description: 'My order was supposed to arrive yesterday but it\'s still not here. This is the third time this month.',
+              category: 'shipping',
+              priority: 'high',
+              status: 'open',
+              tags: ['delivery', 'delay']
+            },
+            {
+              customerId: customers[1]?._id || customers[0]._id,
+              subject: 'Wrong item received',
+              description: 'I ordered a blue shirt but received a red one. Need to return this immediately.',
+              category: 'order',
+              priority: 'medium',
+              status: 'open',
+              tags: ['wrong-item', 'return']
+            }
+          ];
+          await Ticket.insertMany(sampleTickets);
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        message: 'Basic test data seeded successfully using fallback method!'
+      });
+    }
   } catch (error) {
     console.error('Seed error:', error);
     res.status(500).json({ 
