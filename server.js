@@ -32,6 +32,57 @@ app.use('/api/customers', require('./routes/customers'));
 app.use('/api/knowledge', require('./routes/knowledge'));
 app.use('/api/automation', require('./routes/automation'));
 app.use('/api/ai', require('./routes/ai'));
+app.use('/api/issue-detection', require('./routes/issueDetection'));
+
+// Setup endpoint for database initialization
+app.get('/api/setup', async (req, res) => {
+  try {
+    const { setupProduction } = require('./scripts/setupProduction');
+    await setupProduction();
+    res.json({ 
+      success: true, 
+      message: 'Database setup completed successfully!',
+      credentials: {
+        email: 'admin@example.com',
+        password: 'admin123'
+      },
+      note: 'Please change the default password in production!'
+    });
+  } catch (error) {
+    console.error('Setup error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Seed issues endpoint
+app.get('/api/seed-issues', async (req, res) => {
+  try {
+    const { exec } = require('child_process');
+    exec('node scripts/generateIssueTestData.js', (error, stdout, stderr) => {
+      if (error) {
+        console.error('Seed error:', error);
+        return res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+      res.json({ 
+        success: true, 
+        message: 'Issue test data seeded successfully!',
+        output: stdout
+      });
+    });
+  } catch (error) {
+    console.error('Seed error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
 
 // Socket.io for real-time updates
 io.on('connection', (socket) => {

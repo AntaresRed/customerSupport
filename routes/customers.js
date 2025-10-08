@@ -1,11 +1,10 @@
 const express = require('express');
-const { authenticateToken } = require('./auth');
 const Customer = require('../models/Customer');
 const Ticket = require('../models/Ticket');
 const router = express.Router();
 
 // Get all customers
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 10, search, tier } = req.query;
     
@@ -38,7 +37,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Get customer by ID
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);
     if (!customer) {
@@ -61,7 +60,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // Create or update customer
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { customerId, name, email, phone, address, preferences } = req.body;
 
@@ -90,7 +89,7 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // Update customer
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);
     if (!customer) {
@@ -108,7 +107,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
 });
 
 // Add order to customer history
-router.post('/:id/orders', authenticateToken, async (req, res) => {
+router.post('/:id/orders', async (req, res) => {
   try {
     const { orderId, orderDate, status, totalAmount, items } = req.body;
     
@@ -139,7 +138,7 @@ router.post('/:id/orders', authenticateToken, async (req, res) => {
 });
 
 // Add item to customer cart
-router.post('/:id/cart', authenticateToken, async (req, res) => {
+router.post('/:id/cart', async (req, res) => {
   try {
     const { productId, productName, quantity, price } = req.body;
     
@@ -170,7 +169,7 @@ router.post('/:id/cart', authenticateToken, async (req, res) => {
 });
 
 // Get customer analytics
-router.get('/:id/analytics', authenticateToken, async (req, res) => {
+router.get('/:id/analytics', async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);
     if (!customer) {

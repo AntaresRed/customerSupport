@@ -5,7 +5,14 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "build": "echo 'No build step required'",
+    "seed": "node scripts/seedData.js",
+    "seed-issues": "node scripts/generateIssueTestData.js",
+    "setup": "node scripts/setupProduction.js",
+    "deploy": "vercel --prod",
+    "deploy:setup": "npm run setup",
+    "vercel-build": "npm run setup"
   },
   "dependencies": {
     "axios": "^1.5.0",

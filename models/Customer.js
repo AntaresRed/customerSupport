@@ -95,9 +95,16 @@ customerSchema.pre('save', async function(next) {
       const timestamp = Date.now().toString().slice(-6);
       const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
       this.customerId = `CUST-${timestamp}${random}`;
+      
+      // Check if this ID already exists
+      const existingCustomer = await this.constructor.findOne({ customerId: this.customerId });
+      if (existingCustomer) {
+        // If it exists, generate a new one
+        this.customerId = `CUST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      }
     } catch (error) {
       console.error('Error generating customer ID:', error);
-      this.customerId = `CUST-${Date.now()}`;
+      this.customerId = `CUST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     }
   }
   next();

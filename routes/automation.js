@@ -1,12 +1,11 @@
 const express = require('express');
-const { authenticateToken } = require('./auth');
 const AutomationRule = require('../models/AutomationRule');
 const Ticket = require('../models/Ticket');
 const User = require('../models/User');
 const router = express.Router();
 
 // Get all automation rules
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const rules = await AutomationRule.find()
       .populate('createdBy', 'name email')
@@ -19,7 +18,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Create new automation rule
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { name, description, conditions, actions, priority } = req.body;
 
@@ -40,7 +39,7 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // Update automation rule
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const rule = await AutomationRule.findById(req.params.id);
     if (!rule) {
@@ -57,7 +56,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
 });
 
 // Delete automation rule
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const rule = await AutomationRule.findById(req.params.id);
     if (!rule) {
@@ -72,7 +71,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 // Toggle rule active status
-router.patch('/:id/toggle', authenticateToken, async (req, res) => {
+router.patch('/:id/toggle', async (req, res) => {
   try {
     const rule = await AutomationRule.findById(req.params.id);
     if (!rule) {
@@ -89,7 +88,7 @@ router.patch('/:id/toggle', authenticateToken, async (req, res) => {
 });
 
 // Test automation rule
-router.post('/:id/test', authenticateToken, async (req, res) => {
+router.post('/:id/test', async (req, res) => {
   try {
     const rule = await AutomationRule.findById(req.params.id);
     if (!rule) {
@@ -110,7 +109,7 @@ router.post('/:id/test', authenticateToken, async (req, res) => {
 });
 
 // Execute automation rules for a ticket
-router.post('/execute/:ticketId', authenticateToken, async (req, res) => {
+router.post('/execute/:ticketId', async (req, res) => {
   try {
     const ticket = await Ticket.findById(req.params.ticketId)
       .populate('customerId');
@@ -246,7 +245,7 @@ async function executeAction(action, ticket) {
 }
 
 // Get automation statistics
-router.get('/stats/overview', authenticateToken, async (req, res) => {
+router.get('/stats/overview', async (req, res) => {
   try {
     const stats = await AutomationRule.aggregate([
       {

@@ -1,11 +1,10 @@
 const express = require('express');
-const { authenticateToken } = require('./auth');
 const aiService = require('../services/aiService');
 const KnowledgeBase = require('../models/KnowledgeBase');
 const router = express.Router();
 
 // Generate AI response for customer inquiry
-router.post('/generate-response', authenticateToken, async (req, res) => {
+router.post('/generate-response', async (req, res) => {
   try {
     const { prompt, context } = req.body;
 
@@ -21,11 +20,11 @@ router.post('/generate-response', authenticateToken, async (req, res) => {
 });
 
 // Analyze ticket sentiment and urgency
-router.post('/analyze-sentiment', authenticateToken, async (req, res) => {
+router.post('/analyze-sentiment', async (req, res) => {
   try {
-    const { content } = req.body;
+    const { content, conversationHistory = [] } = req.body;
 
-    const analysis = await aiService.analyzeTicketSentiment(content);
+    const analysis = await aiService.analyzeTicketSentiment(content, conversationHistory);
     
     res.json(analysis);
   } catch (error) {
@@ -34,7 +33,7 @@ router.post('/analyze-sentiment', authenticateToken, async (req, res) => {
 });
 
 // Get AI-powered knowledge base suggestions
-router.post('/suggest-articles', authenticateToken, async (req, res) => {
+router.post('/suggest-articles', async (req, res) => {
   try {
     const { query, limit = 5 } = req.body;
 
@@ -63,7 +62,7 @@ router.post('/suggest-articles', authenticateToken, async (req, res) => {
 });
 
 // Generate canned response based on category
-router.post('/canned-response', authenticateToken, async (req, res) => {
+router.post('/canned-response', async (req, res) => {
   try {
     const { category, context } = req.body;
 
@@ -80,7 +79,7 @@ router.post('/canned-response', authenticateToken, async (req, res) => {
 });
 
 // Auto-categorize ticket
-router.post('/categorize-ticket', authenticateToken, async (req, res) => {
+router.post('/categorize-ticket', async (req, res) => {
   try {
     const { subject, description } = req.body;
 
@@ -103,7 +102,7 @@ router.post('/categorize-ticket', authenticateToken, async (req, res) => {
 });
 
 // Generate ticket summary
-router.post('/summarize-ticket', authenticateToken, async (req, res) => {
+router.post('/summarize-ticket', async (req, res) => {
   try {
     const { messages } = req.body;
 
@@ -127,9 +126,9 @@ router.post('/summarize-ticket', authenticateToken, async (req, res) => {
 });
 
 // Generate response suggestions
-router.post('/response-suggestions', authenticateToken, async (req, res) => {
+router.post('/response-suggestions', async (req, res) => {
   try {
-    const { customerMessage, context } = req.body;
+    const { customerMessage, context, conversationHistory = [] } = req.body;
 
     const prompt = `As a customer support agent, provide 3 different response suggestions for this customer message. Each should be professional but have a different tone: formal, friendly, and empathetic.
 
@@ -143,23 +142,97 @@ router.post('/response-suggestions', authenticateToken, async (req, res) => {
     
     try {
       const parsedSuggestions = JSON.parse(suggestions);
-      res.json(parsedSuggestions);
+      
+      // Get issue-based recommendations
+      const issueRecommendations = await aiService.getIssueBasedRecommendations(customerMessage, context, conversationHistory);
+      console.log('🔍 Backend issue recommendations result:', {
+        recommendations: issueRecommendations,
+        length: issueRecommendations.length,
+        hasIssues: issueRecommendations.length > 0
+      });
+      
+      res.json({
+        responseSuggestions: parsedSuggestions,
+        issueRecommendations: issueRecommendations,
+        hasIssues: issueRecommendations.length > 0
+      });
     } catch (parseError) {
-      // Fallback if JSON parsing fails
-      res.json([
-        {
-          tone: "professional",
-          response: "Thank you for contacting us. I understand your concern and I'm here to help you resolve this issue."
-        },
-        {
-          tone: "friendly", 
-          response: "Hi there! Thanks for reaching out. I'd be happy to help you with this today."
-        },
-        {
-          tone: "empathetic",
-          response: "I can see how frustrating this must be for you. Let me work on getting this resolved right away."
-        }
-      ]);
+      console.log('AI response parsing failed, using fallback suggestions');
+      // Enhanced fallback responses based on message content
+      const message = customerMessage.toLowerCase();
+      let fallbackSuggestions = [];
+      
+      if (message.includes('refund') || message.includes('return')) {
+        fallbackSuggestions = [
+          {
+            tone: "professional",
+            response: "I understand you'd like to process a refund. Let me help you with that right away. Could you please provide your order number?"
+          },
+          {
+            tone: "friendly", 
+            response: "No problem at all! I'd be happy to help you with your refund. Let me get your order details and process this for you."
+          },
+          {
+            tone: "empathetic",
+            response: "I'm sorry this purchase didn't work out for you. I completely understand wanting a refund, and I'll make sure this gets processed quickly for you."
+          }
+        ];
+      } else if (message.includes('broken') || message.includes('defective') || message.includes('not working')) {
+        fallbackSuggestions = [
+          {
+            tone: "professional",
+            response: "I'm sorry to hear about the issue with your product. Let me help you troubleshoot this and find a solution."
+          },
+          {
+            tone: "friendly",
+            response: "Oh no! That's definitely not what we want for you. Let me help you get this sorted out right away."
+          },
+          {
+            tone: "empathetic", 
+            response: "I'm really sorry this happened. I know how frustrating it is when something doesn't work as expected. Let me help you resolve this."
+          }
+        ];
+      } else if (message.includes('shipping') || message.includes('delivery') || message.includes('tracking')) {
+        fallbackSuggestions = [
+          {
+            tone: "professional",
+            response: "I'd be happy to help you with your shipping inquiry. Let me check the status of your order and provide you with the latest information."
+          },
+          {
+            tone: "friendly",
+            response: "Great question about shipping! Let me look up your order and give you all the details about where your package is."
+          },
+          {
+            tone: "empathetic",
+            response: "I understand you're eager to know about your order status. Let me check on that for you right away and get you the information you need."
+          }
+        ];
+      } else {
+        // Generic fallback responses
+        fallbackSuggestions = [
+          {
+            tone: "professional",
+            response: "Thank you for contacting us. I understand your concern and I'm here to help you resolve this issue."
+          },
+          {
+            tone: "friendly",
+            response: "Hi there! Thanks for reaching out. I'd be happy to help you with this. Let me look into it for you."
+          },
+          {
+            tone: "empathetic",
+            response: "I'm sorry to hear about this issue. I understand how frustrating this must be, and I want to help you get this resolved quickly."
+          }
+        ];
+      }
+      
+      // Get issue-based recommendations even for fallback responses
+      const issueRecommendations = await aiService.getIssueBasedRecommendations(customerMessage, context, conversationHistory);
+      
+      res.json({
+        responseSuggestions: fallbackSuggestions,
+        issueRecommendations: issueRecommendations,
+        hasIssues: issueRecommendations.length > 0
+      });
     }
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -167,7 +240,7 @@ router.post('/response-suggestions', authenticateToken, async (req, res) => {
 });
 
 // Chatbot Conversation Management
-router.post('/chatbot/start-conversation', authenticateToken, async (req, res) => {
+router.post('/chatbot/start-conversation', async (req, res) => {
   try {
     const { context } = req.body;
     const sessionId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -184,7 +257,7 @@ router.post('/chatbot/start-conversation', authenticateToken, async (req, res) =
   }
 });
 
-router.post('/chatbot/send-message', authenticateToken, async (req, res) => {
+router.post('/chatbot/send-message', async (req, res) => {
   try {
     const { sessionId, message, context } = req.body;
 
@@ -200,7 +273,24 @@ router.post('/chatbot/send-message', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/chatbot/conversation/:sessionId', authenticateToken, async (req, res) => {
+// Add a message to conversation history without generating a response
+router.post('/chatbot/add-message', async (req, res) => {
+  try {
+    const { sessionId, message, role = 'user' } = req.body;
+
+    if (!sessionId || !message) {
+      return res.status(400).json({ message: 'Session ID and message are required' });
+    }
+
+    aiService.addMessage(sessionId, role, message);
+    
+    res.json({ success: true, message: 'Message added to conversation history' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.get('/chatbot/conversation/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
     const conversation = aiService.getConversation(sessionId);
@@ -215,7 +305,7 @@ router.get('/chatbot/conversation/:sessionId', authenticateToken, async (req, re
   }
 });
 
-router.get('/chatbot/conversation/:sessionId/analytics', authenticateToken, async (req, res) => {
+router.get('/chatbot/conversation/:sessionId/analytics', async (req, res) => {
   try {
     const { sessionId } = req.params;
     const analytics = aiService.getConversationAnalytics(sessionId);
@@ -230,7 +320,7 @@ router.get('/chatbot/conversation/:sessionId/analytics', authenticateToken, asyn
   }
 });
 
-router.post('/chatbot/conversation/:sessionId/export', authenticateToken, async (req, res) => {
+router.post('/chatbot/conversation/:sessionId/export', async (req, res) => {
   try {
     const { sessionId } = req.params;
     const conversation = aiService.exportConversation(sessionId);
@@ -245,7 +335,7 @@ router.post('/chatbot/conversation/:sessionId/export', authenticateToken, async 
   }
 });
 
-router.delete('/chatbot/conversation/:sessionId', authenticateToken, async (req, res) => {
+router.delete('/chatbot/conversation/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
     const conversation = aiService.getConversation(sessionId);
@@ -262,7 +352,7 @@ router.delete('/chatbot/conversation/:sessionId', authenticateToken, async (req,
 });
 
 // Get conversation templates
-router.get('/chatbot/templates', authenticateToken, async (req, res) => {
+router.get('/chatbot/templates', async (req, res) => {
   try {
     const templates = [
       {

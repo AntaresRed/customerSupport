@@ -83,6 +83,9 @@
                             <a href="#" class="list-group-item list-group-item-action" onclick="showSection('ai')">
                                 <i class="fas fa-robot me-2"></i>AI Assistant
                             </a>
+                            <a href="#" class="list-group-item list-group-item-action" onclick="showSection('issues')">
+                                <i class="fas fa-exclamation-triangle me-2"></i>Issue Detection
+                            </a>
                         </div>
                     </div>
 
@@ -214,6 +217,9 @@
                                         <option value="gold">Gold</option>
                                         <option value="platinum">Platinum</option>
                                     </select>
+                                    <button class="btn btn-outline-secondary" onclick="clearCustomerFilters()" title="Clear filters">
+                                        <i class="fas fa-times"></i>
+                                    </button>
                                 </div>
                             </div>
 
@@ -289,6 +295,152 @@
                             </div>
                         </div>
 
+                        <!-- Issue Detection Section -->
+                        <div id="issuesSection" class="content-section d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h2>AI-Powered Issue Detection</h2>
+                                <div class="btn-group">
+                                    <button class="btn btn-primary" onclick="runIssueAnalysis()">
+                                        <i class="fas fa-search me-1"></i>Analyze Issues
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="exportIssueData()">
+                                        <i class="fas fa-download me-1"></i>Export Data
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Health Overview -->
+                            <div class="row mb-4">
+                                <div class="col-md-3">
+                                    <div class="card bg-primary text-white">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between">
+                                                <div>
+                                                    <h4 id="totalIssues">0</h4>
+                                                    <p class="mb-0">Total Issues</p>
+                                                </div>
+                                                <i class="fas fa-exclamation-triangle fa-2x"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-danger text-white">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between">
+                                                <div>
+                                                    <h4 id="criticalIssues">0</h4>
+                                                    <p class="mb-0">Critical</p>
+                                                </div>
+                                                <i class="fas fa-fire fa-2x"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-warning text-white">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between">
+                                                <div>
+                                                    <h4 id="highIssues">0</h4>
+                                                    <p class="mb-0">High Priority</p>
+                                                </div>
+                                                <i class="fas fa-exclamation-circle fa-2x"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-success text-white">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between">
+                                                <div>
+                                                    <h4 id="systemHealth">Good</h4>
+                                                    <p class="mb-0">System Health</p>
+                                                </div>
+                                                <i class="fas fa-heartbeat fa-2x"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Issue Categories -->
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">Supply Chain Health by Category</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="categoryHealthChart" class="row">
+                                                <!-- Category health cards will be loaded here -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Detected Issues -->
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="card">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <h5 class="mb-0">Detected Issues</h5>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary" onclick="filterIssues('all')">All</button>
+                                                <button class="btn btn-outline-danger" onclick="filterIssues('critical')">Critical</button>
+                                                <button class="btn btn-outline-warning" onclick="filterIssues('high')">High</button>
+                                                <button class="btn btn-outline-info" onclick="filterIssues('medium')">Medium</button>
+                                            </div>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="issuesList">
+                                                <div class="text-center py-4">
+                                                    <div class="spinner-border" role="status">
+                                                        <span class="visually-hidden">Loading...</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Issue Details Sidebar -->
+                                <div class="col-md-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Issue Details</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="issueDetails">
+                                                <div class="text-center text-muted py-4">
+                                                    <i class="fas fa-mouse-pointer fa-2x mb-2"></i>
+                                                    <p>Select an issue to view details</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Trend Analysis -->
+                                    <div class="card mt-3">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Trend Analysis</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="trendAnalysis">
+                                                <div class="text-center py-4">
+                                                    <div class="spinner-border spinner-border-sm" role="status">
+                                                        <span class="visually-hidden">Loading...</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- AI Assistant Section -->
                         <div id="aiSection" class="content-section d-none">
                             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -302,6 +454,7 @@
                                     </button>
                                 </div>
                             </div>
+
 
                             <div class="row">
                                 <!-- Chat Interface -->
@@ -321,34 +474,57 @@
                                                 </button>
                                             </div>
                                         </div>
-                                        <div class="card-body p-0">
-                                            <!-- Chat Messages Area -->
-                                            <div id="chatMessages" class="chat-messages">
-                                                <div class="welcome-message text-center py-4">
-                                                    <i class="fas fa-user fa-3x text-muted mb-3"></i>
-                                                    <h5>Smart Customer Simulator</h5>
-                                                    <p class="text-muted">The AI acts as a customer and analyzes your previous responses to give contextually appropriate replies. Use the Quick Response Templates on the right to respond professionally, or type your own custom response.</p>
-                                                    <div class="alert alert-info mt-3">
-                                                        <i class="fas fa-brain me-2"></i>
-                                                        <strong>Context-Aware:</strong> The customer will remember and respond to what you say based on the conversation history.
+                                        <!-- Chat Messages Area -->
+                                        <div id="chatMessages" class="chat-messages">
+                                            <div class="welcome-message text-center py-4">
+                                                <i class="fas fa-user fa-3x text-muted mb-3"></i>
+                                                <h5>Smart Customer Simulator</h5>
+                                                <div class="row justify-content-center mb-3">
+                                                    <div class="col-md-8">
+                                                        <div class="card bg-light">
+                                                            <div class="card-body py-3">
+                                                                <h6 class="card-title mb-2">
+                                                                    <i class="fas fa-user-circle me-2"></i>Customer Profile
+                                                                </h6>
+                                                                <div class="row g-2 text-start">
+                                                                    <div class="col-6">
+                                                                        <strong>Name:</strong> <span id="mockCustomerName">Sarah Johnson</span>
+                                                                    </div>
+                                                                    <div class="col-6">
+                                                                        <strong>Order ID:</strong> <span id="mockOrderId">#ORD-2024-001234</span>
+                                                                    </div>
+                                                                    <div class="col-6">
+                                                                        <strong>Email:</strong> sarah.johnson@email.com
+                                                                    </div>
+                                                                    <div class="col-6">
+                                                                        <strong>Issue:</strong> <span id="mockIssueCategory">Order Inquiry</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
+                                                <p class="text-muted">The AI acts as this customer and analyzes your previous responses to give contextually appropriate replies. Use the Quick Response Templates on the right to respond professionally, or type your own custom response.</p>
+                                                <div class="alert alert-info mt-3">
+                                                    <i class="fas fa-brain me-2"></i>
+                                                    <strong>Context-Aware:</strong> The customer will remember and respond to what you say based on the conversation history.
+                                                </div>
                                             </div>
-                                            
-                                            <!-- Message Input Area -->
-                                            <div class="chat-input-container p-3 border-top">
-                                                <div class="input-group">
-                                                    <input type="text" id="chatInput" class="form-control" placeholder="Type your message here..." onkeypress="handleChatKeyPress(event)">
-                                                    <button class="btn btn-primary" onclick="sendChatMessage()" id="sendButton">
-                                                        <i class="fas fa-paper-plane"></i>
-                                                    </button>
-                                                </div>
-                                                <div class="mt-2">
-                                                    <small class="text-muted">
-                                                        <i class="fas fa-lightbulb me-1"></i>
-                                                        Pro tip: Respond as a support agent to the customer's concerns
-                                                    </small>
-                                                </div>
+                                        </div>
+                                        
+                                        <!-- Message Input Area -->
+                                        <div class="chat-input-container p-3 border-top">
+                                            <div class="input-group">
+                                                <input type="text" id="chatInput" class="form-control" placeholder="Type your message here..." onkeypress="handleChatKeyPress(event)">
+                                                <button class="btn btn-primary" onclick="sendChatMessage()" id="sendButton">
+                                                    <i class="fas fa-paper-plane"></i>
+                                                </button>
+                                            </div>
+                                            <div class="mt-2">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-lightbulb me-1"></i>
+                                                    Pro tip: Respond as a support agent to the customer's concerns
+                                                </small>
                                             </div>
                                         </div>
                                     </div>
@@ -356,54 +532,57 @@
 
                                 <!-- Sidebar with Templates and Tools -->
                                 <div class="col-md-4">
-                                    <!-- Quick Templates -->
+
+                                    <!-- AI Tools - Moved up for better accessibility -->
                                     <div class="card mb-3">
                                         <div class="card-header">
                                             <h6 class="mb-0">
-                                                <i class="fas fa-magic me-1"></i>Quick Response Templates
+                                                <i class="fas fa-tools me-1"></i>AI Tools
                                             </h6>
                                         </div>
                                         <div class="card-body">
-                                            <p class="small text-muted mb-3">Click any template to use it as your response to the customer.</p>
-                                            <div id="chatTemplates" class="d-grid gap-2">
-                                                <!-- Templates will be loaded here -->
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <button class="btn btn-outline-primary btn-sm w-100" onclick="analyzeSentiment()">
+                                                        <i class="fas fa-heart me-1"></i>Sentiment
+                                                    </button>
+                                                </div>
+                                                <div class="col-6">
+                                                    <button class="btn btn-outline-primary btn-sm w-100" onclick="suggestResponse()">
+                                                        <i class="fas fa-lightbulb me-1"></i>Suggest
+                                                    </button>
+                                                </div>
+                                                <div class="col-12">
+                                                    <button class="btn btn-outline-primary btn-sm w-100" onclick="searchKnowledgeBase()">
+                                                        <i class="fas fa-search me-1"></i>Search Knowledge Base
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <!-- Customer Context -->
+                                    <!-- Quick Templates -->
                                     <div class="card mb-3">
-                                        <div class="card-header">
-                                            <h6 class="mb-0">
-                                                <i class="fas fa-user me-1"></i>Customer Context
-                                            </h6>
+                                        <div class="card-header" style="cursor: pointer;" onclick="toggleTemplates()" data-bs-toggle="collapse" data-bs-target="#templatesCollapse" aria-expanded="false" aria-controls="templatesCollapse">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <h6 class="mb-0">
+                                                    <i class="fas fa-magic me-1"></i>Quick Response Templates
+                                                </h6>
+                                                <i class="fas fa-chevron-down" id="templatesChevron"></i>
+                                            </div>
                                         </div>
-                                        <div class="card-body">
-                                            <div class="mb-2">
-                                                <label class="form-label small">Customer Name</label>
-                                                <input type="text" class="form-control form-control-sm" id="customerName" placeholder="Enter customer name">
-                                            </div>
-                                            <div class="mb-2">
-                                                <label class="form-label small">Order ID</label>
-                                                <input type="text" class="form-control form-control-sm" id="orderId" placeholder="Enter order ID">
-                                            </div>
-                                            <div class="mb-2">
-                                                <label class="form-label small">Issue Category</label>
-                                                <select class="form-select form-select-sm" id="issueCategory">
-                                                    <option value="">Select category</option>
-                                                    <option value="order">Order Inquiry</option>
-                                                    <option value="shipping">Shipping</option>
-                                                    <option value="return">Return/Exchange</option>
-                                                    <option value="technical">Technical Support</option>
-                                                    <option value="billing">Billing</option>
-                                                    <option value="general">General Question</option>
-                                                </select>
+                                        <div class="collapse" id="templatesCollapse">
+                                            <div class="card-body">
+                                                <p class="small text-muted mb-3">Click any template to use it as your response to the customer.</p>
+                                                <div id="chatTemplates" class="d-grid gap-2">
+                                                    <!-- Templates will be loaded here -->
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
                                     <!-- Conversation Analytics -->
-                                    <div class="card d-none" id="analyticsCard">
+                                    <div class="card" id="analyticsCard">
                                         <div class="card-header">
                                             <h6 class="mb-0">
                                                 <i class="fas fa-chart-bar me-1"></i>Conversation Analytics
@@ -412,28 +591,6 @@
                                         <div class="card-body">
                                             <div id="conversationAnalytics">
                                                 <!-- Analytics will be loaded here -->
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- AI Tools -->
-                                    <div class="card">
-                                        <div class="card-header">
-                                            <h6 class="mb-0">
-                                                <i class="fas fa-tools me-1"></i>AI Tools
-                                            </h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <div class="d-grid gap-2">
-                                                <button class="btn btn-outline-primary btn-sm" onclick="analyzeSentiment()">
-                                                    <i class="fas fa-heart me-1"></i>Analyze Sentiment
-                                                </button>
-                                                <button class="btn btn-outline-primary btn-sm" onclick="suggestResponse()">
-                                                    <i class="fas fa-lightbulb me-1"></i>Response Suggestions
-                                                </button>
-                                                <button class="btn btn-outline-primary btn-sm" onclick="searchKnowledge()">
-                                                    <i class="fas fa-search me-1"></i>Search Knowledge Base
-                                                </button>
                                             </div>
                                         </div>
                                     </div>

@@ -81,9 +81,16 @@ ticketSchema.pre('save', async function(next) {
       const timestamp = Date.now().toString().slice(-6);
       const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
       this.ticketId = `TKT-${timestamp}${random}`;
+      
+      // Check if this ID already exists
+      const existingTicket = await this.constructor.findOne({ ticketId: this.ticketId });
+      if (existingTicket) {
+        // If it exists, generate a new one
+        this.ticketId = `TKT-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      }
     } catch (error) {
       console.error('Error generating ticket ID:', error);
-      this.ticketId = `TKT-${Date.now()}`;
+      this.ticketId = `TKT-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     }
   }
   next();

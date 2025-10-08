@@ -1,5 +1,4 @@
 const express = require('express');
-const { authenticateToken } = require('./auth');
 const KnowledgeBase = require('../models/KnowledgeBase');
 const aiService = require('../services/aiService');
 const router = express.Router();
@@ -59,7 +58,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create new article
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { title, content, category, tags, keywords } = req.body;
 
@@ -80,7 +79,7 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // Update article
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const article = await KnowledgeBase.findById(req.params.id);
     if (!article) {
@@ -97,7 +96,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
 });
 
 // Delete article
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const article = await KnowledgeBase.findById(req.params.id);
     if (!article) {

@@ -1,12 +1,11 @@
 const express = require('express');
-const { authenticateToken } = require('./auth');
 const Ticket = require('../models/Ticket');
 const Customer = require('../models/Customer');
 const aiService = require('../services/aiService');
 const router = express.Router();
 
 // Get all tickets with filtering and pagination
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { 
       status, 
@@ -52,7 +51,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Get ticket by ID
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const ticket = await Ticket.findById(req.params.id)
       .populate('customerId')
@@ -69,19 +68,34 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // Create new ticket
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { customerId, subject, description, category, priority, channel } = req.body;
 
     // Find or create customer
     let customer = await Customer.findOne({ customerId });
     if (!customer) {
-      customer = new Customer({
-        customerId,
-        name: req.body.customerName || 'Unknown Customer',
-        email: req.body.customerEmail || 'unknown@example.com'
+      // Check if a customer with the same email already exists
+      const existingCustomer = await Customer.findOne({ 
+        email: req.body.customerEmail || 'unknown@example.com' 
       });
-      await customer.save();
+      
+      if (existingCustomer) {
+        customer = existingCustomer;
+      } else {
+        // Generate unique email if needed
+        let email = req.body.customerEmail || 'unknown@example.com';
+        if (email === 'unknown@example.com') {
+          email = `customer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}@example.com`;
+        }
+        
+        customer = new Customer({
+          customerId,
+          name: req.body.customerName || 'Unknown Customer',
+          email: email
+        });
+        await customer.save();
+      }
     }
 
     const ticket = new Ticket({
@@ -127,9 +141,9 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // Update ticket
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const { status, priority, assignedAgent, resolution } = req.body;
+    const { status, priority, assignedAgent, resolution, actualResolution } = req.body;
 
     const ticket = await Ticket.findById(req.params.id);
     if (!ticket) {
@@ -140,9 +154,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
     if (priority) ticket.priority = priority;
     if (assignedAgent) ticket.assignedAgent = assignedAgent;
     if (resolution) ticket.resolution = resolution;
+    if (actualResolution) ticket.actualResolution = actualResolution;
 
     if (status === 'resolved' || status === 'closed') {
-      ticket.actualResolution = new Date();
+      ticket.actualResolution = actualResolution || new Date();
     }
 
     await ticket.save();
@@ -158,9 +173,9 @@ router.put('/:id', authenticateToken, async (req, res) => {
 });
 
 // Add message to ticket
-router.post('/:id/messages', authenticateToken, async (req, res) => {
+router.post('/:id/messages', async (req, res) => {
   try {
-    const { content, sender } = req.body;
+    const { content, sender, isAI } = req.body;
     const ticket = await Ticket.findById(req.params.id);
 
     if (!ticket) {
@@ -170,6 +185,7 @@ router.post('/:id/messages', authenticateToken, async (req, res) => {
     const message = {
       sender: sender || 'agent',
       content,
+      isAI: isAI || false,
       timestamp: new Date()
     };
 
@@ -187,7 +203,7 @@ router.post('/:id/messages', authenticateToken, async (req, res) => {
 });
 
 // Get ticket statistics
-router.get('/stats/overview', authenticateToken, async (req, res) => {
+router.get('/stats/overview', async (req, res) => {
   try {
     const stats = await Ticket.aggregate([
       {

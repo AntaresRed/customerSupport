@@ -228,6 +228,124 @@ async function seedData() {
     await article3.save();
     console.log('Article 3 created');
 
+    // Add more comprehensive knowledge base articles
+    const article4 = new KnowledgeBase({
+      title: 'How to create an account and manage your profile',
+      content: 'Creating an account is easy! Click "Sign Up" on our homepage, enter your email and create a password. Once logged in, you can update your profile, manage addresses, and view order history. You can also set communication preferences and manage your loyalty points.',
+      category: 'tutorial',
+      tags: ['account', 'profile', 'registration', 'tutorial'],
+      keywords: ['account', 'signup', 'register', 'profile', 'settings'],
+      author: adminUser._id,
+      viewCount: 234,
+      helpfulCount: 89
+    });
+    await article4.save();
+    console.log('Article 4 created');
+
+    const article5 = new KnowledgeBase({
+      title: 'Shipping options and delivery times',
+      content: 'We offer several shipping options: Standard (5-7 business days), Express (2-3 business days), and Overnight (next business day). Free shipping is available on orders over $50. International shipping is available to select countries with delivery times of 7-14 business days.',
+      category: 'faq',
+      tags: ['shipping', 'delivery', 'options', 'timeline'],
+      keywords: ['shipping', 'delivery', 'express', 'overnight', 'international'],
+      author: adminUser._id,
+      viewCount: 189,
+      helpfulCount: 76
+    });
+    await article5.save();
+    console.log('Article 5 created');
+
+    const article6 = new KnowledgeBase({
+      title: 'Payment methods and billing information',
+      content: 'We accept all major credit cards (Visa, MasterCard, American Express), PayPal, Apple Pay, and Google Pay. All payments are processed securely through encrypted connections. You can save payment methods for faster checkout. Billing addresses must match your payment method.',
+      category: 'faq',
+      tags: ['payment', 'billing', 'credit-card', 'paypal'],
+      keywords: ['payment', 'billing', 'credit', 'card', 'paypal', 'apple-pay'],
+      author: adminUser._id,
+      viewCount: 156,
+      helpfulCount: 62
+    });
+    await article6.save();
+    console.log('Article 6 created');
+
+    const article7 = new KnowledgeBase({
+      title: 'Product warranty and support coverage',
+      content: 'Most products come with a 1-year manufacturer warranty. Electronics have extended warranty options available at checkout. Warranty covers manufacturing defects and hardware failures. Damage from misuse, accidents, or normal wear and tear is not covered. Contact support for warranty claims.',
+      category: 'policy',
+      tags: ['warranty', 'support', 'coverage', 'electronics'],
+      keywords: ['warranty', 'support', 'coverage', 'electronics', 'defects'],
+      author: adminUser._id,
+      viewCount: 98,
+      helpfulCount: 41
+    });
+    await article7.save();
+    console.log('Article 7 created');
+
+    const article8 = new KnowledgeBase({
+      title: 'Troubleshooting smart watch setup and synchronization',
+      content: 'To set up your smart watch: 1) Download our companion app, 2) Enable Bluetooth on your phone, 3) Open the app and follow the pairing instructions, 4) Allow necessary permissions. If sync issues occur, restart both devices and ensure the app is updated to the latest version.',
+      category: 'troubleshooting',
+      tags: ['smartwatch', 'setup', 'sync', 'bluetooth', 'app'],
+      keywords: ['smartwatch', 'setup', 'sync', 'bluetooth', 'app', 'troubleshoot'],
+      author: agent2._id,
+      viewCount: 78,
+      helpfulCount: 34
+    });
+    await article8.save();
+    console.log('Article 8 created');
+
+    const article9 = new KnowledgeBase({
+      title: 'How to cancel or modify an existing order',
+      content: 'You can cancel or modify orders within 1 hour of placement through your account dashboard. After 1 hour, contact support immediately. Orders that have already shipped cannot be cancelled but can be returned. Modifications to shipping addresses may incur additional charges.',
+      category: 'faq',
+      tags: ['cancel', 'modify', 'order', 'changes'],
+      keywords: ['cancel', 'modify', 'order', 'change', 'shipping'],
+      author: adminUser._id,
+      viewCount: 145,
+      helpfulCount: 58
+    });
+    await article9.save();
+    console.log('Article 9 created');
+
+    const article10 = new KnowledgeBase({
+      title: 'Loyalty program benefits and point redemption',
+      content: 'Our loyalty program offers points for every purchase: 1 point per $1 spent. Points can be redeemed for discounts, free shipping, or exclusive products. Gold members get 2x points, Platinum members get 3x points. Points expire after 2 years of inactivity. Check your account for current point balance.',
+      category: 'tutorial',
+      tags: ['loyalty', 'points', 'rewards', 'benefits'],
+      keywords: ['loyalty', 'points', 'rewards', 'benefits', 'redemption'],
+      author: adminUser._id,
+      viewCount: 167,
+      helpfulCount: 71
+    });
+    await article10.save();
+    console.log('Article 10 created');
+
+    const article11 = new KnowledgeBase({
+      title: 'Security and privacy policy updates',
+      content: 'We take your privacy seriously. We never sell your personal information and use industry-standard encryption to protect your data. Our privacy policy is regularly updated to comply with regulations. You can opt out of marketing communications at any time through your account settings.',
+      category: 'policy',
+      tags: ['security', 'privacy', 'data', 'protection'],
+      keywords: ['security', 'privacy', 'data', 'protection', 'encryption'],
+      author: adminUser._id,
+      viewCount: 89,
+      helpfulCount: 35
+    });
+    await article11.save();
+    console.log('Article 11 created');
+
+    const article12 = new KnowledgeBase({
+      title: 'Mobile app features and troubleshooting',
+      content: 'Our mobile app allows you to browse products, track orders, manage your account, and receive notifications. If the app crashes or won\'t load, try: 1) Force close and reopen, 2) Clear app cache, 3) Update to latest version, 4) Restart your device. Contact support if issues persist.',
+      category: 'troubleshooting',
+      tags: ['mobile', 'app', 'troubleshooting', 'crashes'],
+      keywords: ['mobile', 'app', 'troubleshoot', 'crash', 'update'],
+      author: agent2._id,
+      viewCount: 112,
+      helpfulCount: 47
+    });
+    await article12.save();
+    console.log('Article 12 created');
+
     // Create automation rules
     console.log('Creating automation rules...');
     const rule1 = new AutomationRule({
@@ -286,7 +404,7 @@ async function seedData() {
     console.log('- 3 users (1 admin, 2 agents)');
     console.log(`- 2 customers with order history and cart data (${customer1.customerId}, ${customer2.customerId})`);
     console.log(`- 2 tickets with messages (${ticket1.ticketId}, ${ticket2.ticketId})`);
-    console.log('- 3 knowledge base articles');
+    console.log('- 12 knowledge base articles with comprehensive coverage');
     console.log('- 3 automation rules');
     console.log('\nLogin credentials:');
     console.log('Admin: admin@example.com / password123');
