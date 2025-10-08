@@ -20,10 +20,30 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ecommerce_support', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+async function connectDB() {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ecommerce_support', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('✅ Connected to MongoDB');
+  } catch (error) {
+    console.error('❌ MongoDB connection error:', error);
+    process.exit(1);
+  }
+}
+
+// Connect to database
+connectDB();
+
+// Database connection status check
+async function ensureDBConnection() {
+  if (mongoose.connection.readyState !== 1) {
+    console.log('⚠️ Database not connected, attempting to reconnect...');
+    await connectDB();
+  }
+  return mongoose.connection.readyState === 1;
+}
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -54,9 +74,44 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+// Database connection test endpoint
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const isConnected = await ensureDBConnection();
+    res.json({
+      success: isConnected,
+      message: isConnected ? 'Database connected successfully' : 'Database connection failed',
+      connectionState: mongoose.connection.readyState,
+      connectionStates: {
+        0: 'disconnected',
+        1: 'connected',
+        2: 'connecting',
+        3: 'disconnecting'
+      },
+      currentState: mongoose.connectionStates[mongoose.connection.readyState]
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      connectionState: mongoose.connection.readyState
+    });
+  }
+});
+
 // Data verification endpoint
 app.get('/api/verify-data', async (req, res) => {
   try {
+    // Ensure database connection
+    const isConnected = await ensureDBConnection();
+    if (!isConnected) {
+      return res.status(500).json({
+        success: false,
+        error: 'Database connection failed',
+        connectionState: mongoose.connection.readyState
+      });
+    }
+    
     const Customer = require('./models/Customer');
     const Ticket = require('./models/Ticket');
     const User = require('./models/User');
@@ -67,6 +122,7 @@ app.get('/api/verify-data', async (req, res) => {
     
     res.json({
       success: true,
+      connectionState: mongoose.connection.readyState,
       counts: {
         customers: await Customer.countDocuments(),
         tickets: await Ticket.countDocuments(),
@@ -96,7 +152,8 @@ app.get('/api/verify-data', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
+      connectionState: mongoose.connection.readyState
     });
   }
 });
@@ -129,13 +186,26 @@ app.get('/api/init-all', async (req, res) => {
   try {
     console.log('🚀 Starting complete initialization...');
     
+    // Step 0: Ensure database connection
+    const isConnected = await ensureDBConnection();
+    if (!isConnected) {
+      return res.status(500).json({
+        success: false,
+        error: 'Database connection failed',
+        message: 'Cannot initialize without database connection',
+        connectionState: mongoose.connection.readyState
+      });
+    }
+    
+    console.log('✅ Database connection verified');
+    
     // Step 1: Setup database (admin user, basic structure)
     try {
       const { setupProduction } = require('./scripts/setupProduction');
       await setupProduction();
       console.log('✅ Database setup completed');
     } catch (setupError) {
-      console.log('⚠️ Setup script failed, creating basic admin user...');
+      console.log('⚠️ Setup script failed, creating basic admin user...', setupError.message);
       
       // Create basic admin user manually
       const User = require('./models/User');
