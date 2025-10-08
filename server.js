@@ -307,27 +307,25 @@ app.get('/api/init-all', async (req, res) => {
     
     console.log('✅ Database connection established');
     
-    // Step 1: Setup database (admin user, basic structure)
+    // Step 1: Create data directly (bypass setupProduction script)
+    console.log('📋 Creating data directly to avoid connection conflicts...');
+    
     try {
-      const { setupProduction } = require('./scripts/setupProduction');
-      await setupProduction();
-      console.log('✅ Database setup completed');
-    } catch (setupError) {
-      console.log('⚠️ Setup script failed, creating basic admin user...', setupError.message);
-      
-      // Create basic admin user manually
+      // Create admin user
       const User = require('./models/User');
-      const existingAdmin = await User.findOne({ email: 'admin@example.com' });
-      if (!existingAdmin) {
-        const adminUser = new User({
+      let adminUser = await User.findOne({ email: 'admin@example.com' });
+      if (!adminUser) {
+        adminUser = new User({
           name: 'Admin User',
           email: 'admin@example.com',
-          password: 'admin123',
+          password: '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password: admin123
           role: 'admin',
           department: 'support'
         });
         await adminUser.save();
-        console.log('✅ Basic admin user created');
+        console.log('✅ Admin user created');
+      } else {
+        console.log('ℹ️ Admin user already exists');
       }
     }
     
@@ -476,11 +474,122 @@ app.get('/api/init-all', async (req, res) => {
       }
     }
     
-    // Step 4: Return final status
+    // Step 4: Create knowledge base articles
+    const KnowledgeBase = require('./models/KnowledgeBase');
+    const existingKnowledge = await KnowledgeBase.countDocuments();
+    
+    if (existingKnowledge < 5) {
+      const knowledgeArticles = [
+        {
+          title: 'How to track your order',
+          content: 'You can track your order by logging into your account and going to the "My Orders" section. You can also use the tracking number provided in your confirmation email to track your package on the carrier\'s website.',
+          category: 'faq',
+          tags: ['tracking', 'orders', 'shipping'],
+          keywords: ['track', 'order', 'shipping', 'delivery', 'status'],
+          author: adminUser._id,
+          viewCount: 0
+        },
+        {
+          title: 'Return and refund policy',
+          content: 'Our return policy allows you to return items within 30 days of purchase. Items must be in original condition with tags attached. Refunds will be processed within 5-7 business days after we receive your return.',
+          category: 'policy',
+          tags: ['returns', 'refunds', 'policy'],
+          keywords: ['return', 'refund', 'policy', 'exchange', '30 days'],
+          author: adminUser._id,
+          viewCount: 0
+        },
+        {
+          title: 'Account security and password reset',
+          content: 'To reset your password, click "Forgot Password" on the login page and enter your email address. You\'ll receive a secure link to create a new password.',
+          category: 'technical',
+          tags: ['security', 'password', 'account'],
+          keywords: ['password', 'reset', 'security', 'login', 'account'],
+          author: adminUser._id,
+          viewCount: 0
+        },
+        {
+          title: 'Payment methods and billing',
+          content: 'We accept all major credit cards (Visa, MasterCard, American Express), PayPal, and bank transfers. You can update your payment method in your account settings.',
+          category: 'billing',
+          tags: ['payment', 'billing', 'credit card'],
+          keywords: ['payment', 'billing', 'credit card', 'paypal', 'subscription'],
+          author: adminUser._id,
+          viewCount: 0
+        },
+        {
+          title: 'Shipping information and delivery times',
+          content: 'Standard shipping takes 3-5 business days within the US, 7-14 days internationally. Express shipping (1-2 days) is available for additional fees.',
+          category: 'shipping',
+          tags: ['shipping', 'delivery', 'express'],
+          keywords: ['shipping', 'delivery', 'express', 'overnight', 'free shipping'],
+          author: adminUser._id,
+          viewCount: 0
+        }
+      ];
+      
+      for (const articleData of knowledgeArticles) {
+        const existing = await KnowledgeBase.findOne({ title: articleData.title });
+        if (!existing) {
+          await KnowledgeBase.create(articleData);
+          console.log(`✅ Created knowledge article: ${articleData.title}`);
+        }
+      }
+    }
+    
+    // Step 5: Create automation rules
+    const AutomationRule = require('./models/AutomationRule');
+    const existingRules = await AutomationRule.countDocuments();
+    
+    if (existingRules < 3) {
+      const automationRules = [
+        {
+          name: 'Auto-assign High Priority Tickets',
+          description: 'Automatically assigns tickets with high priority to senior support agents',
+          trigger: 'ticket_created',
+          conditions: { priority: 'high' },
+          actions: [{ type: 'assign_to_agent', params: { agentType: 'senior' } }],
+          isActive: true,
+          createdBy: adminUser._id,
+          executionCount: 0
+        },
+        {
+          name: 'Escalate Overdue Tickets',
+          description: 'Escalates tickets that have been open for more than 48 hours',
+          trigger: 'ticket_overdue',
+          conditions: { status: 'open', hoursOpen: { $gt: 48 } },
+          actions: [{ type: 'escalate_to_manager', params: { escalationLevel: 'manager' } }],
+          isActive: true,
+          createdBy: adminUser._id,
+          executionCount: 0
+        },
+        {
+          name: 'Auto-respond to Common Queries',
+          description: 'Provides automated responses for frequently asked questions',
+          trigger: 'ticket_created',
+          conditions: { category: 'faq' },
+          actions: [{ type: 'send_auto_response', params: { template: 'faq_response' } }],
+          isActive: true,
+          createdBy: adminUser._id,
+          executionCount: 0
+        }
+      ];
+      
+      for (const ruleData of automationRules) {
+        const existing = await AutomationRule.findOne({ name: ruleData.name });
+        if (!existing) {
+          await AutomationRule.create(ruleData);
+          console.log(`✅ Created automation rule: ${ruleData.name}`);
+        }
+      }
+    }
+    
+    // Step 6: Return final status
     const finalCounts = {
       customers: await Customer.countDocuments(),
       tickets: await Ticket.countDocuments(),
-      users: await User.countDocuments()
+      users: await User.countDocuments(),
+      knowledgeBase: await KnowledgeBase.countDocuments(),
+      automationRules: await AutomationRule.countDocuments()
     };
     
     res.json({
