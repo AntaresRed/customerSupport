@@ -22,14 +22,26 @@ app.use(express.static('public'));
 // Database connection
 async function connectDB() {
   try {
+    // Don't reconnect if already connected or connecting
+    if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
+      console.log('📡 Database already connected or connecting');
+      return;
+    }
+    
+    console.log('🔗 Connecting to MongoDB...');
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ecommerce_support', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 10000, // 10 seconds timeout
+      socketTimeoutMS: 45000, // 45 seconds timeout
     });
     console.log('✅ Connected to MongoDB');
   } catch (error) {
     console.error('❌ MongoDB connection error:', error);
-    process.exit(1);
+    // Don't exit in serverless environment
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
+    }
   }
 }
 
@@ -38,11 +50,63 @@ connectDB();
 
 // Database connection status check
 async function ensureDBConnection() {
-  if (mongoose.connection.readyState !== 1) {
-    console.log('⚠️ Database not connected, attempting to reconnect...');
-    await connectDB();
+  const currentState = mongoose.connection.readyState;
+  console.log(`🔍 Current connection state: ${currentState} (${getConnectionStateName(currentState)})`);
+  
+  if (currentState === 1) {
+    console.log('✅ Database already connected');
+    return true;
   }
-  return mongoose.connection.readyState === 1;
+  
+  if (currentState === 2) {
+    console.log('⏳ Database is connecting, waiting for completion...');
+    // Wait for connection to complete (max 10 seconds)
+    let attempts = 0;
+    while (mongoose.connection.readyState === 2 && attempts < 10) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      attempts++;
+      console.log(`⏳ Still connecting... attempt ${attempts}/10`);
+    }
+    
+    if (mongoose.connection.readyState === 1) {
+      console.log('✅ Database connection completed');
+      return true;
+    } else {
+      console.log('❌ Database connection timed out');
+      return false;
+    }
+  }
+  
+  // If disconnected, try to reconnect
+  console.log('⚠️ Database disconnected, attempting to reconnect...');
+  try {
+    await connectDB();
+    // Wait for connection to establish
+    let attempts = 0;
+    while (mongoose.connection.readyState !== 1 && attempts < 10) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      attempts++;
+      console.log(`⏳ Reconnecting... attempt ${attempts}/10`);
+    }
+    
+    const finalState = mongoose.connection.readyState;
+    console.log(`✅ Final connection state: ${finalState} (${getConnectionStateName(finalState)})`);
+    return finalState === 1;
+  } catch (error) {
+    console.error('❌ Failed to reconnect to database:', error.message);
+    return false;
+  }
+}
+
+// Helper function to get connection state name
+function getConnectionStateName(state) {
+  const states = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting', 
+    3: 'disconnecting'
+  };
+  return states[state] || 'unknown';
 }
 
 // Routes
@@ -78,17 +142,19 @@ app.get('/api/test', (req, res) => {
 app.get('/api/test-db', async (req, res) => {
   try {
     const isConnected = await ensureDBConnection();
+    const connectionStates = {
+      0: 'disconnected',
+      1: 'connected', 
+      2: 'connecting',
+      3: 'disconnecting'
+    };
+    
     res.json({
       success: isConnected,
       message: isConnected ? 'Database connected successfully' : 'Database connection failed',
       connectionState: mongoose.connection.readyState,
-      connectionStates: {
-        0: 'disconnected',
-        1: 'connected',
-        2: 'connecting',
-        3: 'disconnecting'
-      },
-      currentState: mongoose.connectionStates[mongoose.connection.readyState]
+      connectionStates: connectionStates,
+      currentState: connectionStates[mongoose.connection.readyState] || 'unknown'
     });
   } catch (error) {
     res.status(500).json({
