@@ -1,327 +1,244 @@
 const express = require('express');
-const router = express.Router();
+const mockDataService = require('../services/mockDataService');
 const issueDetectionService = require('../services/issueDetectionService');
-const Ticket = require('../models/Ticket');
-const Customer = require('../models/Customer');
+const router = express.Router();
 
-// Get comprehensive issue analysis
-router.get('/analysis', async (req, res) => {
+// Get all detected issues
+router.get('/', (req, res) => {
   try {
-    console.log('Starting comprehensive issue analysis...');
-    const analysis = await issueDetectionService.analyzeAllTickets();
-    
-    res.json({
-      success: true,
-      data: analysis,
-      timestamp: new Date()
-    });
+    const issues = mockDataService.getAllIssues();
+    res.json(issues);
   } catch (error) {
-    console.error('Error in issue analysis:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to analyze issues',
-      message: error.message
-    });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Get real-time issue detection for a specific ticket
-router.post('/detect/:ticketId', async (req, res) => {
+// Get issue by ID
+router.get('/:id', (req, res) => {
   try {
-    const { ticketId } = req.params;
-    const ticket = await Ticket.findById(ticketId).populate('customerId');
+    const issue = mockDataService.findIssueById(req.params.id);
     
-    if (!ticket) {
-      return res.status(404).json({
-        success: false,
-        error: 'Ticket not found'
-      });
+    if (!issue) {
+      return res.status(404).json({ message: 'Issue not found' });
     }
-    
-    const detection = await issueDetectionService.detectIssuesForNewTicket(ticket);
-    
-    res.json({
-      success: true,
-      data: detection,
-      timestamp: new Date()
-    });
+
+    res.json(issue);
   } catch (error) {
-    console.error('Error in ticket issue detection:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to detect issues for ticket',
-      message: error.message
-    });
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Analyze all tickets for issues
+router.post('/analyze', async (req, res) => {
+  try {
+    console.log('🔍 Starting issue analysis...');
+    
+    // Get all tickets for analysis
+    const tickets = mockDataService.getAllTickets();
+    
+    // Mock analysis results (in real app, use the actual service)
+    const analysisResults = {
+      totalTicketsAnalyzed: tickets.length,
+      issuesDetected: mockDataService.getAllIssues().length,
+      analysisTimestamp: new Date(),
+      categories: {
+        logistics: tickets.filter(t => t.category === 'shipping').length,
+        product: tickets.filter(t => t.category === 'product').length,
+        billing: tickets.filter(t => t.category === 'billing').length,
+        technical: tickets.filter(t => t.category === 'technical').length
+      },
+      severityBreakdown: {
+        critical: mockDataService.getAllIssues().filter(i => i.severity === 'critical').length,
+        high: mockDataService.getAllIssues().filter(i => i.severity === 'high').length,
+        medium: mockDataService.getAllIssues().filter(i => i.severity === 'medium').length,
+        low: mockDataService.getAllIssues().filter(i => i.severity === 'low').length
+      }
+    };
+
+    res.json(analysisResults);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Get issue statistics
+router.get('/stats/overview', (req, res) => {
+  try {
+    const issues = mockDataService.getAllIssues();
+    
+    const stats = {
+      totalIssues: issues.length,
+      activeIssues: issues.filter(issue => issue.status === 'active').length,
+      resolvedIssues: issues.filter(issue => issue.status === 'resolved').length,
+      investigatingIssues: issues.filter(issue => issue.status === 'investigating').length,
+      severityBreakdown: {
+        critical: issues.filter(issue => issue.severity === 'critical').length,
+        high: issues.filter(issue => issue.severity === 'high').length,
+        medium: issues.filter(issue => issue.severity === 'medium').length,
+        low: issues.filter(issue => issue.severity === 'low').length
+      },
+      categoryBreakdown: {
+        logistics: issues.filter(issue => issue.category === 'logistics').length,
+        technology: issues.filter(issue => issue.category === 'technology').length,
+        quality: issues.filter(issue => issue.category === 'quality').length,
+        customer_service: issues.filter(issue => issue.category === 'customer_service').length,
+        payment: issues.filter(issue => issue.category === 'payment').length,
+        fulfillment: issues.filter(issue => issue.category === 'fulfillment').length
+      },
+      totalAffectedCustomers: issues.reduce((sum, issue) => sum + (issue.affectedCustomers || 0), 0)
+    };
+
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 // Get issues by category
-router.get('/issues/:category', async (req, res) => {
+router.get('/category/:category', (req, res) => {
   try {
     const { category } = req.params;
-    const analysis = await issueDetectionService.analyzeAllTickets();
-    
-    const categoryIssues = analysis.issues.filter(issue => 
-      issue.category === category
-    );
+    const issues = mockDataService.getAllIssues().filter(issue => issue.category === category);
     
     res.json({
-      success: true,
-      data: {
-        category,
-        issues: categoryIssues,
-        totalIssues: categoryIssues.length
-      },
-      timestamp: new Date()
+      category,
+      issues,
+      count: issues.length
     });
   } catch (error) {
-    console.error('Error getting category issues:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get category issues',
-      message: error.message
-    });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Get high-priority issues
-router.get('/issues/priority/high', async (req, res) => {
+// Get issues by severity
+router.get('/severity/:severity', (req, res) => {
   try {
-    const analysis = await issueDetectionService.analyzeAllTickets();
-    
-    const highPriorityIssues = analysis.issues.filter(issue => 
-      issue.severity === 'critical' || issue.severity === 'high'
-    );
+    const { severity } = req.params;
+    const issues = mockDataService.getAllIssues().filter(issue => issue.severity === severity);
     
     res.json({
-      success: true,
-      data: {
-        issues: highPriorityIssues,
-        count: highPriorityIssues.length
-      },
-      timestamp: new Date()
+      severity,
+      issues,
+      count: issues.length
     });
   } catch (error) {
-    console.error('Error getting high-priority issues:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get high-priority issues',
-      message: error.message
-    });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Get supply chain health overview
-router.get('/health', async (req, res) => {
+// Update issue status
+router.put('/:id/status', (req, res) => {
   try {
-    const analysis = await issueDetectionService.analyzeAllTickets();
-    
-    const healthOverview = {
-      overallHealth: analysis.summary.overallHealth,
-      totalIssues: analysis.summary.totalIssuesDetected,
-      criticalIssues: analysis.summary.criticalIssues,
-      highIssues: analysis.summary.highIssues,
-      categories: Object.keys(analysis.impactAnalysis).map(category => ({
-        category,
-        ...analysis.impactAnalysis[category]
-      })),
-      recommendations: analysis.summary.recommendations,
-      lastAnalyzed: analysis.analysisDate
-    };
-    
-    res.json({
-      success: true,
-      data: healthOverview,
-      timestamp: new Date()
-    });
-  } catch (error) {
-    console.error('Error getting health overview:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get health overview',
-      message: error.message
-    });
-  }
-});
-
-// Get trend analysis
-router.get('/trends', async (req, res) => {
-  try {
-    const { days = 30 } = req.query;
-    const daysAgo = new Date();
-    daysAgo.setDate(daysAgo.getDate() - parseInt(days));
-    
-    const tickets = await Ticket.find({
-      createdAt: { $gte: daysAgo }
-    }).sort({ createdAt: 1 });
-    
-    // Group tickets by day
-    const dailyData = {};
-    tickets.forEach(ticket => {
-      const date = ticket.createdAt.toISOString().split('T')[0];
-      if (!dailyData[date]) {
-        dailyData[date] = { total: 0, byCategory: {}, byPriority: {} };
-      }
-      dailyData[date].total++;
-      
-      // Categorize ticket
-      const category = issueDetectionService.categorizeTicket(ticket);
-      dailyData[date].byCategory[category] = (dailyData[date].byCategory[category] || 0) + 1;
-      dailyData[date].byPriority[ticket.priority] = (dailyData[date].byPriority[ticket.priority] || 0) + 1;
-    });
-    
-    // Convert to array format for charts
-    const trendData = Object.keys(dailyData).map(date => ({
-      date,
-      ...dailyData[date]
-    })).sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    res.json({
-      success: true,
-      data: {
-        period: `${days} days`,
-        trends: trendData,
-        summary: {
-          totalTickets: tickets.length,
-          averagePerDay: Math.round(tickets.length / parseInt(days) * 10) / 10,
-          peakDay: Object.keys(dailyData).reduce((a, b) => 
-            dailyData[a].total > dailyData[b].total ? a : b
-          )
-        }
-      },
-      timestamp: new Date()
-    });
-  } catch (error) {
-    console.error('Error getting trend analysis:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get trend analysis',
-      message: error.message
-    });
-  }
-});
-
-// Get recommendations for specific issue
-router.get('/recommendations/:issueId', async (req, res) => {
-  try {
-    const { issueId } = req.params;
-    const analysis = await issueDetectionService.analyzeAllTickets();
-    
-    const issue = analysis.issues.find(i => i.id === issueId);
+    const { status } = req.body;
+    const issue = mockDataService.findIssueById(req.params.id);
     
     if (!issue) {
-      return res.status(404).json({
-        success: false,
-        error: 'Issue not found'
-      });
+      return res.status(404).json({ message: 'Issue not found' });
     }
-    
+
+    // Mock status update
+    const updatedIssue = {
+      ...issue,
+      status,
+      lastUpdated: new Date()
+    };
+
     res.json({
-      success: true,
-      data: {
-        issueId,
-        recommendations: issue.recommendations,
-        impact: issue.impact,
-        evidence: issue.evidence
-      },
-      timestamp: new Date()
+      message: 'Issue status updated successfully',
+      issue: updatedIssue
     });
   } catch (error) {
-    console.error('Error getting recommendations:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get recommendations',
-      message: error.message
-    });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Get customer impact analysis
-router.get('/customer-impact', async (req, res) => {
+// Add recommendation to issue
+router.post('/:id/recommendations', (req, res) => {
   try {
-    const analysis = await issueDetectionService.analyzeAllTickets();
+    const { recommendation } = req.body;
+    const issue = mockDataService.findIssueById(req.params.id);
     
-    const customerImpact = {};
-    
-    analysis.issues.forEach(issue => {
-      issue.affectedCustomers.forEach(customerEmail => {
-        if (!customerImpact[customerEmail]) {
-          customerImpact[customerEmail] = {
-            email: customerEmail,
-            issues: [],
-            severity: 'low'
-          };
-        }
-        customerImpact[customerEmail].issues.push({
-          id: issue.id,
-          title: issue.title,
-          category: issue.category,
-          severity: issue.severity
-        });
-        
-        // Update overall severity
-        if (issue.severity === 'critical' || customerImpact[customerEmail].severity === 'critical') {
-          customerImpact[customerEmail].severity = 'critical';
-        } else if (issue.severity === 'high' || customerImpact[customerEmail].severity === 'high') {
-          customerImpact[customerEmail].severity = 'high';
-        } else if (issue.severity === 'medium') {
-          customerImpact[customerEmail].severity = 'medium';
-        }
-      });
-    });
-    
-    const impactArray = Object.values(customerImpact).sort((a, b) => {
-      const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
-      return severityOrder[b.severity] - severityOrder[a.severity];
-    });
-    
+    if (!issue) {
+      return res.status(404).json({ message: 'Issue not found' });
+    }
+
+    // Mock adding recommendation
+    if (!issue.recommendations) issue.recommendations = [];
+    issue.recommendations.push(recommendation);
+
     res.json({
-      success: true,
-      data: {
-        customers: impactArray,
-        totalAffected: impactArray.length,
-        criticalCustomers: impactArray.filter(c => c.severity === 'critical').length,
-        highImpactCustomers: impactArray.filter(c => c.severity === 'high').length
-      },
-      timestamp: new Date()
+      message: 'Recommendation added successfully',
+      issue
     });
   } catch (error) {
-    console.error('Error getting customer impact:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get customer impact analysis',
-      message: error.message
-    });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Export analysis data
-router.get('/export', async (req, res) => {
+// Get issue trends
+router.get('/analytics/trends', (req, res) => {
   try {
-    const analysis = await issueDetectionService.analyzeAllTickets();
+    const issues = mockDataService.getAllIssues();
     
-    const exportData = {
-      exportDate: new Date(),
-      analysis: analysis,
-      metadata: {
-        totalTicketsAnalyzed: analysis.totalTicketsAnalyzed,
-        timeRange: analysis.timeRange,
-        issuesDetected: analysis.issues.length
+    // Mock trend data
+    const trends = {
+      dailyTrends: [
+        { date: '2024-10-01', issues: 5, resolved: 3 },
+        { date: '2024-10-02', issues: 7, resolved: 4 },
+        { date: '2024-10-03', issues: 3, resolved: 6 },
+        { date: '2024-10-04', issues: 8, resolved: 5 },
+        { date: '2024-10-05', issues: 4, resolved: 7 },
+        { date: '2024-10-06', issues: 6, resolved: 4 },
+        { date: '2024-10-07', issues: 2, resolved: 5 }
+      ],
+      categoryTrends: [
+        { category: 'logistics', trend: 'increasing', change: '+15%' },
+        { category: 'technology', trend: 'decreasing', change: '-8%' },
+        { category: 'quality', trend: 'stable', change: '0%' },
+        { category: 'customer_service', trend: 'increasing', change: '+5%' }
+      ],
+      resolutionTrends: {
+        averageResolutionTime: '2.5 days',
+        resolutionRate: '78%',
+        escalationRate: '12%'
       }
     };
-    
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', 'attachment; filename="issue-analysis.json"');
-    res.json(exportData);
+
+    res.json(trends);
   } catch (error) {
-    console.error('Error exporting analysis:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to export analysis data',
-      message: error.message
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Detect issues for new ticket
+router.post('/detect/:ticketId', async (req, res) => {
+  try {
+    const ticket = mockDataService.findTicketById(req.params.ticketId);
+    
+    if (!ticket) {
+      return res.status(404).json({ message: 'Ticket not found' });
+    }
+
+    // Mock issue detection for the ticket
+    const detectedIssues = mockDataService.getAllIssues().filter(issue => {
+      // Simple matching logic
+      return ticket.category === issue.category || 
+             ticket.description.toLowerCase().includes(issue.title.toLowerCase().split(' ')[0]);
     });
+
+    res.json({
+      ticketId: ticket._id,
+      detectedIssues,
+      count: detectedIssues.length,
+      analysis: {
+        confidence: 0.85,
+        method: 'pattern_matching',
+        timestamp: new Date()
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 module.exports = router;
-

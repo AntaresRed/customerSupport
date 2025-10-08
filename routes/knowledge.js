@@ -1,35 +1,41 @@
 const express = require('express');
-const KnowledgeBase = require('../models/KnowledgeBase');
+const mockDataService = require('../services/mockDataService');
 const aiService = require('../services/aiService');
 const router = express.Router();
 
 // Get all knowledge base articles
-router.get('/', async (req, res) => {
+router.get('/', (req, res) => {
   try {
     const { category, search, page = 1, limit = 10 } = req.query;
     
-    const filter = { isPublished: true };
-    if (category) filter.category = category;
-    if (search) {
-      filter.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { content: { $regex: search, $options: 'i' } },
-        { tags: { $in: [new RegExp(search, 'i')] } }
-      ];
-    }
+    const filters = {};
+    if (category) filters.category = category;
+    if (search) filters.search = search;
+    
+    const allArticles = mockDataService.getAllKnowledgeArticles(filters);
+    const total = allArticles.length;
+    
+    // Apply pagination
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + parseInt(limit);
+    const articles = allArticles.slice(startIndex, endIndex);
 
-    const articles = await KnowledgeBase.find(filter)
-      .populate('author', 'name')
-      .sort({ lastUpdated: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
-    const total = await KnowledgeBase.countDocuments(filter);
+    // Populate author data
+    const populatedArticles = articles.map(article => {
+      const author = mockDataService.findUserById(article.author);
+      return {
+        ...article,
+        author: author ? {
+          _id: author._id,
+          name: author.name
+        } : null
+      };
+    });
 
     res.json({
-      articles,
+      articles: populatedArticles,
       totalPages: Math.ceil(total / limit),
-      currentPage: page,
+      currentPage: parseInt(page),
       total
     });
   } catch (error) {
@@ -38,104 +44,109 @@ router.get('/', async (req, res) => {
 });
 
 // Get article by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', (req, res) => {
   try {
-    const article = await KnowledgeBase.findById(req.params.id)
-      .populate('author', 'name');
-
+    const article = mockDataService.findKnowledgeArticleById(req.params.id);
+    
     if (!article) {
       return res.status(404).json({ message: 'Article not found' });
     }
 
-    // Increment view count
-    article.viewCount += 1;
-    await article.save();
+    // Populate author data
+    const author = mockDataService.findUserById(article.author);
+    const populatedArticle = {
+      ...article,
+      author: author ? {
+        _id: author._id,
+        name: author.name
+      } : null
+    };
 
-    res.json(article);
+    res.json(populatedArticle);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 // Create new article
-router.post('/', async (req, res) => {
+router.post('/', (req, res) => {
   try {
-    const { title, content, category, tags, keywords } = req.body;
-
-    const article = new KnowledgeBase({
+    const { title, content, category, tags, author } = req.body;
+    
+    const newArticle = mockDataService.createKnowledgeArticle({
       title,
       content,
-      category,
+      category: category || 'general',
       tags: tags || [],
-      keywords: keywords || [],
-      author: req.user.userId
+      author: author || 'user_1' // Default to admin user
     });
 
-    await article.save();
-    res.status(201).json(article);
+    res.status(201).json(newArticle);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 // Update article
-router.put('/:id', async (req, res) => {
+router.put('/:id', (req, res) => {
   try {
-    const article = await KnowledgeBase.findById(req.params.id);
-    if (!article) {
+    const { title, content, category, tags, isPublished } = req.body;
+    
+    const updatedArticle = mockDataService.updateKnowledgeArticle(req.params.id, {
+      title,
+      content,
+      category,
+      tags,
+      isPublished
+    });
+
+    if (!updatedArticle) {
       return res.status(404).json({ message: 'Article not found' });
     }
 
-    Object.assign(article, req.body);
-    await article.save();
-
-    res.json(article);
+    res.json(updatedArticle);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 // Delete article
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', (req, res) => {
   try {
-    const article = await KnowledgeBase.findById(req.params.id);
+    const article = mockDataService.findKnowledgeArticleById(req.params.id);
+    
     if (!article) {
       return res.status(404).json({ message: 'Article not found' });
     }
 
-    await KnowledgeBase.findByIdAndDelete(req.params.id);
+    // Mock deletion (in real app, you'd remove from array)
+    const updatedArticle = mockDataService.updateKnowledgeArticle(req.params.id, {
+      isPublished: false,
+      deletedAt: new Date()
+    });
+
     res.json({ message: 'Article deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Search articles with AI-powered suggestions
+// Search articles with AI
 router.post('/search', async (req, res) => {
   try {
     const { query } = req.body;
-
-    // Basic text search
-    const articles = await KnowledgeBase.find({
-      isPublished: true,
-      $or: [
-        { title: { $regex: query, $options: 'i' } },
-        { content: { $regex: query, $options: 'i' } },
-        { tags: { $in: [new RegExp(query, 'i')] } },
-        { keywords: { $in: [new RegExp(query, 'i')] } }
-      ]
-    })
-    .populate('author', 'name')
-    .sort({ viewCount: -1, lastUpdated: -1 })
-    .limit(10);
-
-    // AI-powered suggestions
-    const aiSuggestions = await aiService.suggestKnowledgeBaseArticles(query, articles);
-
+    
+    // Use AI service for intelligent search
+    const aiSuggestions = await aiService.searchKnowledgeBase(query);
+    
+    // Also do regular search
+    const regularResults = mockDataService.getAllKnowledgeArticles({ search: query });
+    
     res.json({
-      articles,
+      query,
       aiSuggestions,
-      query
+      regularResults,
+      totalResults: regularResults.length + aiSuggestions.length
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -143,55 +154,73 @@ router.post('/search', async (req, res) => {
 });
 
 // Rate article helpfulness
-router.post('/:id/rate', async (req, res) => {
+router.post('/:id/rate', (req, res) => {
   try {
     const { helpful } = req.body;
-    const article = await KnowledgeBase.findById(req.params.id);
-
+    
+    const article = mockDataService.findKnowledgeArticleById(req.params.id);
+    
     if (!article) {
       return res.status(404).json({ message: 'Article not found' });
     }
 
-    if (helpful) {
-      article.helpfulCount += 1;
-    } else {
-      article.notHelpfulCount += 1;
+    // Update rating
+    if (helpful === true) {
+      article.helpfulCount = (article.helpfulCount || 0) + 1;
+    } else if (helpful === false) {
+      article.notHelpfulCount = (article.notHelpfulCount || 0) + 1;
     }
 
-    await article.save();
-    res.json({ message: 'Rating recorded' });
+    const updatedArticle = mockDataService.updateKnowledgeArticle(req.params.id, {
+      helpfulCount: article.helpfulCount,
+      notHelpfulCount: article.notHelpfulCount
+    });
+
+    res.json({
+      message: 'Rating recorded successfully',
+      article: updatedArticle
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Get FAQ articles
-router.get('/category/faq', async (req, res) => {
+// Get article categories
+router.get('/categories/list', (req, res) => {
   try {
-    const faqs = await KnowledgeBase.find({
-      category: 'faq',
-      isPublished: true
-    })
-    .populate('author', 'name')
-    .sort({ viewCount: -1 });
+    const articles = mockDataService.getAllKnowledgeArticles();
+    const categories = [...new Set(articles.map(article => article.category))];
+    
+    const categoryStats = categories.map(category => {
+      const articlesInCategory = articles.filter(article => article.category === category);
+      return {
+        name: category,
+        count: articlesInCategory.length,
+        helpfulCount: articlesInCategory.reduce((sum, article) => sum + (article.helpfulCount || 0), 0)
+      };
+    });
 
-    res.json(faqs);
+    res.json({
+      categories: categoryStats,
+      totalCategories: categories.length
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 // Get popular articles
-router.get('/popular', async (req, res) => {
+router.get('/popular/list', (req, res) => {
   try {
-    const popular = await KnowledgeBase.find({
-      isPublished: true
-    })
-    .populate('author', 'name')
-    .sort({ viewCount: -1, helpfulCount: -1 })
-    .limit(10);
+    const articles = mockDataService.getAllKnowledgeArticles()
+      .filter(article => article.isPublished)
+      .sort((a, b) => (b.helpfulCount || 0) - (a.helpfulCount || 0))
+      .slice(0, 10);
 
-    res.json(popular);
+    res.json({
+      popularArticles: articles,
+      count: articles.length
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

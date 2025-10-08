@@ -1,150 +1,199 @@
 const express = require('express');
-const AutomationRule = require('../models/AutomationRule');
-const Ticket = require('../models/Ticket');
-const User = require('../models/User');
+const mockDataService = require('../services/mockDataService');
 const router = express.Router();
 
 // Get all automation rules
-router.get('/', async (req, res) => {
+router.get('/', (req, res) => {
   try {
-    const rules = await AutomationRule.find()
-      .populate('createdBy', 'name email')
-      .sort({ priority: -1, createdAt: -1 });
-
+    const rules = mockDataService.getAllAutomationRules();
     res.json(rules);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
+// Get automation rule by ID
+router.get('/:id', (req, res) => {
+  try {
+    const rule = mockDataService.findAutomationRuleById(req.params.id);
+    
+    if (!rule) {
+      return res.status(404).json({ message: 'Automation rule not found' });
+    }
+
+    res.json(rule);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Create new automation rule
-router.post('/', async (req, res) => {
+router.post('/', (req, res) => {
   try {
     const { name, description, conditions, actions, priority } = req.body;
-
-    const rule = new AutomationRule({
+    
+    const newRule = mockDataService.createAutomationRule({
       name,
       description,
-      conditions,
-      actions,
-      priority: priority || 0,
-      createdBy: req.user.userId
+      conditions: conditions || [],
+      actions: actions || [],
+      priority: priority || 1
     });
 
-    await rule.save();
-    res.status(201).json(rule);
+    res.status(201).json(newRule);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 // Update automation rule
-router.put('/:id', async (req, res) => {
+router.put('/:id', (req, res) => {
   try {
-    const rule = await AutomationRule.findById(req.params.id);
-    if (!rule) {
-      return res.status(404).json({ message: 'Rule not found' });
+    const { name, description, conditions, actions, priority, isActive } = req.body;
+    
+    const updatedRule = mockDataService.updateAutomationRule(req.params.id, {
+      name,
+      description,
+      conditions,
+      actions,
+      priority,
+      isActive
+    });
+
+    if (!updatedRule) {
+      return res.status(404).json({ message: 'Automation rule not found' });
     }
 
-    Object.assign(rule, req.body);
-    await rule.save();
-
-    res.json(rule);
+    res.json(updatedRule);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 // Delete automation rule
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', (req, res) => {
   try {
-    const rule = await AutomationRule.findById(req.params.id);
+    const rule = mockDataService.findAutomationRuleById(req.params.id);
+    
     if (!rule) {
-      return res.status(404).json({ message: 'Rule not found' });
+      return res.status(404).json({ message: 'Automation rule not found' });
     }
 
-    await AutomationRule.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Rule deleted successfully' });
+    // Mock deletion (in real app, you'd remove from array)
+    const updatedRule = mockDataService.updateAutomationRule(req.params.id, {
+      isActive: false,
+      deletedAt: new Date()
+    });
+
+    res.json({ message: 'Automation rule deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Toggle rule active status
-router.patch('/:id/toggle', async (req, res) => {
+// Toggle automation rule status
+router.patch('/:id/toggle', (req, res) => {
   try {
-    const rule = await AutomationRule.findById(req.params.id);
+    const rule = mockDataService.findAutomationRuleById(req.params.id);
+    
     if (!rule) {
-      return res.status(404).json({ message: 'Rule not found' });
+      return res.status(404).json({ message: 'Automation rule not found' });
     }
 
-    rule.isActive = !rule.isActive;
-    await rule.save();
-
-    res.json(rule);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Test automation rule
-router.post('/:id/test', async (req, res) => {
-  try {
-    const rule = await AutomationRule.findById(req.params.id);
-    if (!rule) {
-      return res.status(404).json({ message: 'Rule not found' });
-    }
-
-    const { testTicket } = req.body;
-    const matches = await evaluateRuleConditions(rule.conditions, testTicket);
+    const updatedRule = mockDataService.updateAutomationRule(req.params.id, {
+      isActive: !rule.isActive
+    });
 
     res.json({
-      rule: rule.name,
-      matches,
-      wouldTrigger: matches && rule.isActive
+      message: `Rule ${updatedRule.isActive ? 'activated' : 'deactivated'} successfully`,
+      rule: updatedRule
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Execute automation rules for a ticket
-router.post('/execute/:ticketId', async (req, res) => {
+// Test automation rule
+router.post('/:id/test', (req, res) => {
   try {
-    const ticket = await Ticket.findById(req.params.ticketId)
-      .populate('customerId');
+    const rule = mockDataService.findAutomationRuleById(req.params.id);
+    
+    if (!rule) {
+      return res.status(404).json({ message: 'Automation rule not found' });
+    }
+
+    // Mock rule testing
+    const testResult = {
+      ruleId: rule._id,
+      ruleName: rule.name,
+      testPassed: true,
+      matchedConditions: rule.conditions.length,
+      executedActions: rule.actions.length,
+      testData: {
+        sampleTicket: {
+          title: 'Test Ticket',
+          priority: 'medium',
+          category: 'general'
+        },
+        conditionsMatched: rule.conditions.map(condition => ({
+          field: condition.field,
+          operator: condition.operator,
+          value: condition.value,
+          matched: true
+        })),
+        actionsExecuted: rule.actions.map(action => ({
+          type: action.type,
+          value: action.value,
+          executed: true
+        }))
+      }
+    };
+
+    res.json(testResult);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Execute automation rules for a ticket
+router.post('/execute/:ticketId', (req, res) => {
+  try {
+    const ticket = mockDataService.findTicketById(req.params.ticketId);
     
     if (!ticket) {
       return res.status(404).json({ message: 'Ticket not found' });
     }
 
-    const rules = await AutomationRule.find({ isActive: true })
-      .sort({ priority: -1 });
-
+    const rules = mockDataService.getAllAutomationRules().filter(rule => rule.isActive);
     const executedActions = [];
 
-    for (const rule of rules) {
-      const matches = await evaluateRuleConditions(rule.conditions, ticket);
+    // Mock rule execution
+    rules.forEach(rule => {
+      const matches = evaluateRuleConditions(rule.conditions, ticket);
       
       if (matches) {
-        for (const action of rule.actions) {
-          const result = await executeAction(action, ticket);
+        rule.actions.forEach(action => {
+          const result = executeAction(action, ticket);
           executedActions.push({
             rule: rule.name,
             action: action.type,
             result
           });
-        }
+        });
 
-        rule.lastTriggered = new Date();
-        rule.triggerCount += 1;
-        await rule.save();
+        // Update rule trigger count
+        mockDataService.updateAutomationRule(rule._id, {
+          lastTriggered: new Date(),
+          triggerCount: (rule.triggerCount || 0) + 1
+        });
       }
-    }
+    });
 
     res.json({
       ticketId: ticket._id,
-      executedActions
+      executedActions,
+      rulesProcessed: rules.length,
+      actionsExecuted: executedActions.length
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -152,121 +201,70 @@ router.post('/execute/:ticketId', async (req, res) => {
 });
 
 // Helper function to evaluate rule conditions
-async function evaluateRuleConditions(conditions, ticket) {
-  for (const condition of conditions) {
-    const { field, operator, value } = condition;
-    let ticketValue = ticket[field];
-
-    // Handle nested fields
-    if (field === 'customer_tier' && ticket.customerId) {
-      ticketValue = ticket.customerId.customerTier;
+function evaluateRuleConditions(conditions, ticket) {
+  return conditions.every(condition => {
+    switch (condition.field) {
+      case 'priority':
+        return ticket.priority === condition.value;
+      case 'category':
+        return ticket.category === condition.value;
+      case 'status':
+        return ticket.status === condition.value;
+      case 'assignedAgent':
+        return ticket.assignedAgent === condition.value;
+      default:
+        return false;
     }
-
-    switch (operator) {
-      case 'equals':
-        if (ticketValue !== value) return false;
-        break;
-      case 'contains':
-        if (!String(ticketValue).toLowerCase().includes(String(value).toLowerCase())) return false;
-        break;
-      case 'greater_than':
-        if (ticketValue <= value) return false;
-        break;
-      case 'less_than':
-        if (ticketValue >= value) return false;
-        break;
-      case 'in':
-        if (!value.includes(ticketValue)) return false;
-        break;
-      case 'not_in':
-        if (value.includes(ticketValue)) return false;
-        break;
-    }
-  }
-  return true;
+  });
 }
 
-// Helper function to execute actions
-async function executeAction(action, ticket) {
-  const { type, parameters } = action;
-
-  switch (type) {
+// Helper function to execute action
+function executeAction(action, ticket) {
+  switch (action.type) {
     case 'assign_agent':
-      if (parameters.agentId) {
-        ticket.assignedAgent = parameters.agentId;
-        await ticket.save();
-        return { success: true, message: 'Agent assigned' };
-      }
-      break;
-
+      mockDataService.updateTicket(ticket._id, { assignedAgent: action.value });
+      return `Assigned ticket to agent ${action.value}`;
     case 'set_priority':
-      if (parameters.priority) {
-        ticket.priority = parameters.priority;
-        await ticket.save();
-        return { success: true, message: 'Priority updated' };
-      }
-      break;
-
+      mockDataService.updateTicket(ticket._id, { priority: action.value });
+      return `Set priority to ${action.value}`;
+    case 'set_category':
+      mockDataService.updateTicket(ticket._id, { category: action.value });
+      return `Set category to ${action.value}`;
     case 'add_tag':
-      if (parameters.tag) {
-        if (!ticket.tags.includes(parameters.tag)) {
-          ticket.tags.push(parameters.tag);
-          await ticket.save();
-        }
-        return { success: true, message: 'Tag added' };
-      }
-      break;
-
-    case 'send_response':
-      if (parameters.message) {
-        ticket.messages.push({
-          sender: 'system',
-          content: parameters.message,
-          timestamp: new Date()
-        });
-        await ticket.save();
-        return { success: true, message: 'Response sent' };
-      }
-      break;
-
-    case 'escalate':
-      ticket.priority = 'urgent';
-      await ticket.save();
-      return { success: true, message: 'Ticket escalated' };
-
-    case 'close_ticket':
-      ticket.status = 'closed';
-      ticket.actualResolution = new Date();
-      await ticket.save();
-      return { success: true, message: 'Ticket closed' };
+      // Mock adding tag
+      return `Added tag: ${action.value}`;
+    case 'send_message':
+      mockDataService.addMessageToTicket(ticket._id, {
+        content: action.value,
+        sender: 'system',
+        senderType: 'system'
+      });
+      return `Sent message: ${action.value}`;
+    default:
+      return `Executed action: ${action.type}`;
   }
-
-  return { success: false, message: 'Action not executed' };
 }
 
 // Get automation statistics
-router.get('/stats/overview', async (req, res) => {
+router.get('/stats/overview', (req, res) => {
   try {
-    const stats = await AutomationRule.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalRules: { $sum: 1 },
-          activeRules: { $sum: { $cond: ['$isActive', 1, 0] } },
-          totalTriggers: { $sum: '$triggerCount' }
-        }
-      }
-    ]);
+    const rules = mockDataService.getAllAutomationRules();
+    const activeRules = rules.filter(rule => rule.isActive);
+    const totalTriggers = rules.reduce((sum, rule) => sum + (rule.triggerCount || 0), 0);
+    
+    const stats = {
+      totalRules: rules.length,
+      activeRules: activeRules.length,
+      inactiveRules: rules.length - activeRules.length,
+      totalTriggers,
+      averageTriggersPerRule: rules.length > 0 ? Math.round(totalTriggers / rules.length) : 0,
+      mostTriggeredRule: rules.reduce((max, rule) => 
+        (rule.triggerCount || 0) > (max.triggerCount || 0) ? rule : max, 
+        { triggerCount: 0 }
+      )
+    };
 
-    const topRules = await AutomationRule.find()
-      .sort({ triggerCount: -1 })
-      .limit(5)
-      .select('name triggerCount');
-
-    res.json({
-      overview: stats[0] || {},
-      topRules
-    });
+    res.json(stats);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

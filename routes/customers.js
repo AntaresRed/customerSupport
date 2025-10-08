@@ -1,34 +1,39 @@
 const express = require('express');
-const Customer = require('../models/Customer');
-const Ticket = require('../models/Ticket');
+const mockDataService = require('../services/mockDataService');
 const router = express.Router();
 
 // Get all customers
-router.get('/', async (req, res) => {
+router.get('/', (req, res) => {
   try {
     const { page = 1, limit = 10, search, tier } = req.query;
     
-    const filter = {};
+    let customers = mockDataService.getAllCustomers();
+    
+    // Apply filters
     if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { customerId: { $regex: search, $options: 'i' } }
-      ];
+      const searchTerm = search.toLowerCase();
+      customers = customers.filter(customer => 
+        customer.name.toLowerCase().includes(searchTerm) ||
+        customer.email.toLowerCase().includes(searchTerm) ||
+        customer.customerId.toLowerCase().includes(searchTerm)
+      );
     }
-    if (tier) filter.customerTier = tier;
-
-    const customers = await Customer.find(filter)
-      .sort({ lastActivity: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
-    const total = await Customer.countDocuments(filter);
+    
+    if (tier) {
+      customers = customers.filter(customer => customer.customerTier === tier);
+    }
+    
+    const total = customers.length;
+    
+    // Apply pagination
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + parseInt(limit);
+    const paginatedCustomers = customers.slice(startIndex, endIndex);
 
     res.json({
-      customers,
+      customers: paginatedCustomers,
       totalPages: Math.ceil(total / limit),
-      currentPage: page,
+      currentPage: parseInt(page),
       total
     });
   } catch (error) {
@@ -37,42 +42,40 @@ router.get('/', async (req, res) => {
 });
 
 // Get customer by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', (req, res) => {
   try {
-    const customer = await Customer.findById(req.params.id);
+    const customer = mockDataService.findCustomerById(req.params.id);
+    
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
-    // Get recent tickets for this customer
-    const recentTickets = await Ticket.find({ customerId: customer._id })
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select('ticketId subject status priority createdAt');
-
-    res.json({
-      ...customer.toObject(),
-      recentTickets
-    });
+    res.json(customer);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 // Create or update customer
-router.post('/', async (req, res) => {
+router.post('/', (req, res) => {
   try {
     const { customerId, name, email, phone, address, preferences } = req.body;
 
-    let customer = await Customer.findOne({ customerId });
+    let customer = mockDataService.findCustomerByEmail(email);
     
     if (customer) {
       // Update existing customer
-      Object.assign(customer, { name, email, phone, address, preferences });
+      customer = mockDataService.updateCustomer(customer._id, { 
+        name, 
+        email, 
+        phone, 
+        address, 
+        preferences 
+      });
     } else {
       // Create new customer
-      customer = new Customer({
-        customerId,
+      customer = mockDataService.createCustomer({
+        customerId: customerId || `CUST${Date.now()}`,
         name,
         email,
         phone,
@@ -81,7 +84,6 @@ router.post('/', async (req, res) => {
       });
     }
 
-    await customer.save();
     res.json(customer);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -89,123 +91,128 @@ router.post('/', async (req, res) => {
 });
 
 // Update customer
-router.put('/:id', async (req, res) => {
+router.put('/:id', (req, res) => {
   try {
-    const customer = await Customer.findById(req.params.id);
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
-    }
-
-    Object.assign(customer, req.body);
-    customer.lastActivity = new Date();
-    await customer.save();
-
-    res.json(customer);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Add order to customer history
-router.post('/:id/orders', async (req, res) => {
-  try {
-    const { orderId, orderDate, status, totalAmount, items } = req.body;
+    const { name, email, phone, address, preferences, customerTier } = req.body;
     
-    const customer = await Customer.findById(req.params.id);
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
-    }
-
-    customer.orderHistory.push({
-      orderId,
-      orderDate: new Date(orderDate),
-      status,
-      totalAmount,
-      items
+    const updatedCustomer = mockDataService.updateCustomer(req.params.id, {
+      name,
+      email,
+      phone,
+      address,
+      preferences,
+      customerTier
     });
 
-    // Update customer tier based on total spending
-    const totalSpent = customer.orderHistory.reduce((sum, order) => sum + order.totalAmount, 0);
-    if (totalSpent >= 10000) customer.customerTier = 'platinum';
-    else if (totalSpent >= 5000) customer.customerTier = 'gold';
-    else if (totalSpent >= 1000) customer.customerTier = 'silver';
+    if (!updatedCustomer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
 
-    await customer.save();
-    res.json(customer);
+    res.json(updatedCustomer);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Add item to customer cart
-router.post('/:id/cart', async (req, res) => {
+// Add order to customer
+router.post('/:id/orders', (req, res) => {
   try {
-    const { productId, productName, quantity, price } = req.body;
+    const customer = mockDataService.findCustomerById(req.params.id);
     
-    const customer = await Customer.findById(req.params.id);
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
-    // Check if item already exists in cart
-    const existingItem = customer.cartItems.find(item => item.productId === productId);
-    if (existingItem) {
-      existingItem.quantity += quantity;
-    } else {
-      customer.cartItems.push({
-        productId,
-        productName,
-        quantity,
-        price,
-        addedDate: new Date()
-      });
+    const { orderId, amount, status, items } = req.body;
+    
+    // Mock order creation
+    const newOrder = {
+      orderId,
+      amount,
+      status,
+      items,
+      createdAt: new Date()
+    };
+
+    // Update customer's order history
+    if (!customer.orders) customer.orders = [];
+    customer.orders.push(newOrder);
+    customer.totalOrders = customer.orders.length;
+    customer.totalSpent = customer.orders.reduce((sum, order) => sum + (order.amount || 0), 0);
+    customer.lastOrderDate = new Date();
+
+    res.json({
+      message: 'Order added successfully',
+      customer: customer
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Add item to customer's cart
+router.post('/:id/cart', (req, res) => {
+  try {
+    const customer = mockDataService.findCustomerById(req.params.id);
+    
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
     }
 
-    await customer.save();
-    res.json(customer);
+    const { productId, quantity, price } = req.body;
+    
+    // Mock cart item
+    const cartItem = {
+      productId,
+      quantity,
+      price,
+      addedAt: new Date()
+    };
+
+    // Update customer's cart
+    if (!customer.cart) customer.cart = [];
+    customer.cart.push(cartItem);
+
+    res.json({
+      message: 'Item added to cart successfully',
+      cart: customer.cart
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 // Get customer analytics
-router.get('/:id/analytics', async (req, res) => {
+router.get('/:id/analytics', (req, res) => {
   try {
-    const customer = await Customer.findById(req.params.id);
+    const customer = mockDataService.findCustomerById(req.params.id);
+    
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
-    const totalSpent = customer.orderHistory.reduce((sum, order) => sum + order.totalAmount, 0);
-    const averageOrderValue = customer.orderHistory.length > 0 ? totalSpent / customer.orderHistory.length : 0;
-    const cartValue = customer.cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    // Mock analytics data
+    const analytics = {
+      customerId: customer._id,
+      totalOrders: customer.totalOrders || 0,
+      totalSpent: customer.totalSpent || 0,
+      averageOrderValue: customer.totalOrders > 0 ? (customer.totalSpent / customer.totalOrders) : 0,
+      lastOrderDate: customer.lastOrderDate,
+      customerTier: customer.customerTier,
+      ordersByMonth: [
+        { month: 'January', orders: 2, amount: 150.00 },
+        { month: 'February', orders: 1, amount: 75.50 },
+        { month: 'March', orders: 3, amount: 225.75 }
+      ],
+      topCategories: [
+        { category: 'Electronics', count: 5, amount: 450.00 },
+        { category: 'Clothing', count: 3, amount: 180.50 },
+        { category: 'Books', count: 2, amount: 45.25 }
+      ],
+      supportTickets: mockDataService.getAllTickets().filter(ticket => ticket.customer === customer._id).length
+    };
 
-    // Get support ticket statistics
-    const ticketStats = await Ticket.aggregate([
-      { $match: { customerId: customer._id } },
-      {
-        $group: {
-          _id: null,
-          totalTickets: { $sum: 1 },
-          openTickets: { $sum: { $cond: [{ $eq: ['$status', 'open'] }, 1, 0] } },
-          resolvedTickets: { $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] } },
-          averageResolutionTime: { $avg: '$actualResolution' }
-        }
-      }
-    ]);
-
-    res.json({
-      customerId: customer.customerId,
-      name: customer.name,
-      tier: customer.customerTier,
-      totalSpent,
-      averageOrderValue,
-      cartValue,
-      orderCount: customer.orderHistory.length,
-      cartItemCount: customer.cartItems.length,
-      loyaltyPoints: customer.loyaltyPoints,
-      ticketStats: ticketStats[0] || {}
-    });
+    res.json(analytics);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
