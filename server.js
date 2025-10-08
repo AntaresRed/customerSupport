@@ -45,6 +45,38 @@ async function connectDB() {
   }
 }
 
+// Force database connection for serverless environments
+async function forceDBConnection() {
+  try {
+    console.log('🔄 Force connecting to database...');
+    
+    // Close any existing connection
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.connection.close();
+      console.log('🔒 Closed existing connection');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    // Create fresh connection
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ecommerce_support', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 20000, // 20 seconds timeout
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 20000,
+      maxPoolSize: 1, // Single connection for serverless
+      retryWrites: true,
+      w: 'majority'
+    });
+    
+    console.log('✅ Force connection successful');
+    return true;
+  } catch (error) {
+    console.error('❌ Force connection failed:', error);
+    return false;
+  }
+}
+
 // Connect to database
 connectDB();
 
@@ -58,70 +90,9 @@ async function ensureDBConnection() {
     return true;
   }
   
-  if (currentState === 2) {
-    console.log('⏳ Database is connecting, waiting for completion...');
-    // Wait for connection to complete (max 15 seconds)
-    let attempts = 0;
-    while (mongoose.connection.readyState === 2 && attempts < 15) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      attempts++;
-      console.log(`⏳ Still connecting... attempt ${attempts}/15`);
-    }
-    
-    if (mongoose.connection.readyState === 1) {
-      console.log('✅ Database connection completed');
-      return true;
-    } else {
-      console.log('❌ Database connection timed out, forcing reconnection...');
-      // Force close and reconnect
-      try {
-        await mongoose.connection.close();
-        console.log('🔒 Forced connection close');
-      } catch (closeError) {
-        console.log('⚠️ Error during forced close:', closeError.message);
-      }
-    }
-  }
-  
-  // If disconnected or connection failed, try to reconnect
-  console.log('⚠️ Database disconnected, attempting fresh connection...');
-  try {
-    // Force a fresh connection
-    await mongoose.connection.close();
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-    
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ecommerce_support', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 15000, // 15 seconds timeout
-      socketTimeoutMS: 45000, // 45 seconds timeout
-      connectTimeoutMS: 15000, // 15 seconds timeout
-      maxPoolSize: 10,
-      retryWrites: true
-    });
-    
-    // Wait for connection to establish
-    let attempts = 0;
-    while (mongoose.connection.readyState !== 1 && attempts < 15) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      attempts++;
-      console.log(`⏳ Fresh connection attempt ${attempts}/15`);
-    }
-    
-    const finalState = mongoose.connection.readyState;
-    console.log(`✅ Final connection state: ${finalState} (${getConnectionStateName(finalState)})`);
-    
-    if (finalState === 1) {
-      console.log('🎉 Database connection established successfully');
-      return true;
-    } else {
-      console.log('❌ Failed to establish database connection');
-      return false;
-    }
-  } catch (error) {
-    console.error('❌ Failed to reconnect to database:', error.message);
-    return false;
-  }
+  // For serverless environments, always force a fresh connection
+  console.log('🔄 Serverless environment detected, forcing fresh connection...');
+  return await forceDBConnection();
 }
 
 // Helper function to get connection state name
@@ -167,7 +138,10 @@ app.get('/api/test', (req, res) => {
 // Database connection test endpoint
 app.get('/api/test-db', async (req, res) => {
   try {
-    const isConnected = await ensureDBConnection();
+    console.log('🧪 Testing database connection...');
+    
+    // Force fresh connection
+    const connectionSuccess = await forceDBConnection();
     const connectionStates = {
       0: 'disconnected',
       1: 'connected', 
@@ -175,14 +149,31 @@ app.get('/api/test-db', async (req, res) => {
       3: 'disconnecting'
     };
     
-    res.json({
-      success: isConnected,
-      message: isConnected ? 'Database connected successfully' : 'Database connection failed',
-      connectionState: mongoose.connection.readyState,
-      connectionStates: connectionStates,
-      currentState: connectionStates[mongoose.connection.readyState] || 'unknown'
-    });
+    if (connectionSuccess) {
+      // Try a simple database operation
+      const User = require('./models/User');
+      const userCount = await User.countDocuments();
+      console.log(`✅ Database test successful - found ${userCount} users`);
+      
+      res.json({
+        success: true,
+        message: 'Database connected and operational',
+        connectionState: mongoose.connection.readyState,
+        connectionStates: connectionStates,
+        currentState: connectionStates[mongoose.connection.readyState] || 'unknown',
+        testOperation: `Successfully queried ${userCount} users`
+      });
+    } else {
+      res.json({
+        success: false,
+        message: 'Database connection failed',
+        connectionState: mongoose.connection.readyState,
+        connectionStates: connectionStates,
+        currentState: connectionStates[mongoose.connection.readyState] || 'unknown'
+      });
+    }
   } catch (error) {
+    console.error('❌ Database test error:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -278,18 +269,20 @@ app.get('/api/init-all', async (req, res) => {
   try {
     console.log('🚀 Starting complete initialization...');
     
-    // Step 0: Ensure database connection
-    const isConnected = await ensureDBConnection();
-    if (!isConnected) {
+    // Step 0: Force database connection for serverless
+    console.log('🔄 Forcing fresh database connection...');
+    const connectionSuccess = await forceDBConnection();
+    
+    if (!connectionSuccess) {
       return res.status(500).json({
         success: false,
         error: 'Database connection failed',
-        message: 'Cannot initialize without database connection',
+        message: 'Cannot establish database connection. Please check MongoDB URI and network access.',
         connectionState: mongoose.connection.readyState
       });
     }
     
-    console.log('✅ Database connection verified');
+    console.log('✅ Database connection established');
     
     // Step 1: Setup database (admin user, basic structure)
     try {
